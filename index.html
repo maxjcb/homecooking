@@ -166,6 +166,22 @@
 
   .profile-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface2); font-size: 13px; cursor: pointer; margin-right: 6px; margin-bottom: 6px; font-family: var(--font); }
   .profile-chip.active { background: var(--accent-light); border-color: var(--accent); color: var(--accent-text); font-weight: 500; }
+
+  /* Mengentyp-Umschalter */
+  .qty-type-row { display: flex; gap: 6px; }
+  .qty-type-btn { flex: 1; padding: 9px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface2); color: var(--text2); font-size: 13px; font-weight: 500; cursor: pointer; font-family: var(--font); transition: all 0.15s; text-align: center; }
+  .qty-type-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  /* Füllstand-Buttons */
+  .fill-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+  .fill-btn { flex: 1; min-width: 60px; padding: 12px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface2); color: var(--text2); font-size: 14px; font-weight: 500; cursor: pointer; font-family: var(--font); transition: all 0.15s; text-align: center; }
+  .fill-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  /* Füllstand-Anzeige in Karte */
+  .fill-bar-wrap { width: 48px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .fill-jar { width: 28px; height: 36px; border: 2px solid var(--border); border-radius: 3px 3px 5px 5px; position: relative; overflow: hidden; background: var(--surface2); }
+  .fill-jar-inner { position: absolute; bottom: 0; left: 0; right: 0; background: var(--accent); opacity: 0.6; transition: height 0.3s; }
+  .fill-pct { font-size: 11px; color: var(--text3); font-weight: 500; }
 </style>
 </head>
 <body>
@@ -318,14 +334,43 @@
       <label class="form-label">Name</label>
       <input class="form-input" id="item-name" placeholder="z. B. Tomaten">
     </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label class="form-label">Menge</label>
-        <input class="form-input" id="item-qty" type="number" min="0" step="0.1" placeholder="1">
+    <div class="form-group">
+      <label class="form-label">Mengentyp</label>
+      <div class="qty-type-row" id="item-qty-type-row">
+        <button type="button" class="qty-type-btn active" data-type="metric" onclick="setQtyType('item','metric',this)">Metrisch (kg / L)</button>
+        <button type="button" class="qty-type-btn" data-type="fill" onclick="setQtyType('item','fill',this)">Füllstand (Glas)</button>
       </div>
+    </div>
+    <div id="item-metric-fields">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Menge</label>
+          <input class="form-input" id="item-qty" type="number" min="0" step="0.1" placeholder="1">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Einheit</label>
+          <select class="form-select" id="item-unit">
+            <option value="kg">kg</option>
+            <option value="g">g</option>
+            <option value="L">L</option>
+            <option value="ml">ml</option>
+            <option value="Stk">Stk</option>
+            <option value="EL">EL</option>
+            <option value="TL">TL</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div id="item-fill-fields" style="display:none">
       <div class="form-group">
-        <label class="form-label">Einheit</label>
-        <input class="form-input" id="item-unit" placeholder="kg, Stk, ml ...">
+        <label class="form-label">Füllstand</label>
+        <div class="fill-btns" id="item-fill-val">
+          <button type="button" class="fill-btn" data-val="100" onclick="setFill('item',100,this)">Voll</button>
+          <button type="button" class="fill-btn" data-val="75" onclick="setFill('item',75,this)">¾</button>
+          <button type="button" class="fill-btn active" data-val="50" onclick="setFill('item',50,this)">½</button>
+          <button type="button" class="fill-btn" data-val="25" onclick="setFill('item',25,this)">¼</button>
+          <button type="button" class="fill-btn" data-val="10" onclick="setFill('item',10,this)">Fast leer</button>
+        </div>
       </div>
     </div>
     <div class="form-group">
@@ -344,6 +389,7 @@
       <label class="form-label">Kategorie</label>
       <select class="form-select" id="item-cat">
         <option value="Aromaten">Aromaten</option>
+        <option value="Asia Pantry">Asia Pantry</option>
         <option value="Backwaren">Backwaren</option>
         <option value="Dosenlebensmittel">Dosenlebensmittel</option>
         <option value="Essig">Essig</option>
@@ -372,14 +418,43 @@
       <label class="form-label">Name</label>
       <input class="form-input" id="edit-item-name">
     </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label class="form-label">Menge</label>
-        <input class="form-input" id="edit-item-qty" type="number" min="0" step="0.1">
+    <div class="form-group">
+      <label class="form-label">Mengentyp</label>
+      <div class="qty-type-row">
+        <button type="button" class="qty-type-btn active" data-type="metric" onclick="setQtyType('edit','metric',this)">Metrisch (kg / L)</button>
+        <button type="button" class="qty-type-btn" data-type="fill" onclick="setQtyType('edit','fill',this)">Füllstand (Glas)</button>
       </div>
+    </div>
+    <div id="edit-metric-fields">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Menge</label>
+          <input class="form-input" id="edit-item-qty" type="number" min="0" step="0.1">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Einheit</label>
+          <select class="form-select" id="edit-item-unit">
+            <option value="kg">kg</option>
+            <option value="g">g</option>
+            <option value="L">L</option>
+            <option value="ml">ml</option>
+            <option value="Stk">Stk</option>
+            <option value="EL">EL</option>
+            <option value="TL">TL</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div id="edit-fill-fields" style="display:none">
       <div class="form-group">
-        <label class="form-label">Einheit</label>
-        <input class="form-input" id="edit-item-unit">
+        <label class="form-label">Füllstand</label>
+        <div class="fill-btns" id="edit-fill-val">
+          <button type="button" class="fill-btn" data-val="100" onclick="setFill('edit',100,this)">Voll</button>
+          <button type="button" class="fill-btn" data-val="75" onclick="setFill('edit',75,this)">¾</button>
+          <button type="button" class="fill-btn active" data-val="50" onclick="setFill('edit',50,this)">½</button>
+          <button type="button" class="fill-btn" data-val="25" onclick="setFill('edit',25,this)">¼</button>
+          <button type="button" class="fill-btn" data-val="10" onclick="setFill('edit',10,this)">Fast leer</button>
+        </div>
       </div>
     </div>
     <div class="form-group">
@@ -398,6 +473,7 @@
       <label class="form-label">Kategorie</label>
       <select class="form-select" id="edit-item-cat">
         <option value="Aromaten">Aromaten</option>
+        <option value="Asia Pantry">Asia Pantry</option>
         <option value="Backwaren">Backwaren</option>
         <option value="Dosenlebensmittel">Dosenlebensmittel</option>
         <option value="Essig">Essig</option>
@@ -604,12 +680,24 @@ function renderPantry() {
     list.innerHTML = `<div class="empty"><div class="empty-icon">🥬</div><p>Noch keine Artikel hier.<br>Tippe auf + um etwas hinzuzufügen.</p></div>`;
     return;
   }
-  // group by category
+  // sort categories alphabetically
   const cats = {};
   items.forEach(i => { const c = i.category || 'Sonstiges'; if (!cats[c]) cats[c]=[]; cats[c].push(i); });
-  list.innerHTML = Object.entries(cats).map(([cat, its]) => `
+  const sortedCats = Object.entries(cats).sort(([a],[b]) => a.localeCompare(b, 'de'));
+  list.innerHTML = sortedCats.map(([cat, its]) => `
     <div class="section-header"><span class="section-label">${cat}</span></div>
-    ${its.map(item => `
+    ${its.map(item => {
+      const isFill = item.qtyType === 'fill';
+      const qtyDisplay = isFill
+        ? `<div class="fill-bar-wrap">
+            <div class="fill-jar"><div class="fill-jar-inner" style="height:${item.qty}%"></div></div>
+            <div class="fill-pct">${fillLabel(item.qty)}</div>
+           </div>`
+        : `<div style="text-align:right">
+            <div class="card-qty">${item.qty}</div>
+            <div class="card-unit">${item.unit||''}</div>
+           </div>`;
+      return `
       <div class="card" onclick="openEditItemModal('${item.id}')">
         <div class="card-row">
           <div class="card-info">
@@ -617,24 +705,57 @@ function renderPantry() {
             <div class="card-meta">${item.mhd ? 'MHD: ' + fmtDate(item.mhd) : ''}</div>
             ${mhdBadge(item.mhd)}
           </div>
-          <div style="text-align:right">
-            <div class="card-qty">${item.qty}</div>
-            <div class="card-unit">${item.unit||''}</div>
-          </div>
+          ${qtyDisplay}
         </div>
-      </div>
-    `).join('')}
+      </div>`;
+    }).join('')}
   `).join('');
   updateHeader();
+}
+
+// ─── MENGENTYP & FÜLLSTAND ───────────────────────────────────────────────────
+function setQtyType(prefix, type, el) {
+  el.closest('.qty-type-row').querySelectorAll('.qty-type-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById(prefix + '-metric-fields').style.display = type === 'metric' ? '' : 'none';
+  document.getElementById(prefix + '-fill-fields').style.display = type === 'fill' ? '' : 'none';
+}
+
+function setFill(prefix, val, el) {
+  el.closest('.fill-btns').querySelectorAll('.fill-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function getActiveFill(prefix) {
+  const active = document.querySelector(`#${prefix}-fill-val .fill-btn.active`);
+  return active ? parseInt(active.dataset.val) : 50;
+}
+
+function isMetricMode(prefix) {
+  const btn = document.querySelector(`#${prefix === 'item' ? 'modal-addItem' : 'modal-editItem'} .qty-type-btn.active`);
+  return btn && btn.dataset.type === 'metric';
+}
+
+function fillLabel(pct) {
+  if (pct >= 100) return 'Voll';
+  if (pct >= 75) return '¾';
+  if (pct >= 50) return '½';
+  if (pct >= 25) return '¼';
+  return 'Fast leer';
 }
 
 function openAddItemModal() {
   document.getElementById('item-name').value = '';
   document.getElementById('item-qty').value = '';
-  document.getElementById('item-unit').value = '';
+  document.getElementById('item-unit').value = 'kg';
   document.getElementById('item-store').value = state.currentStore;
   document.getElementById('item-mhd').value = '';
   document.getElementById('item-cat').value = 'Aromaten';
+  // reset to metric mode
+  document.querySelectorAll('#modal-addItem .qty-type-btn').forEach(b => b.classList.toggle('active', b.dataset.type === 'metric'));
+  document.getElementById('item-metric-fields').style.display = '';
+  document.getElementById('item-fill-fields').style.display = 'none';
+  document.querySelectorAll('#item-fill-val .fill-btn').forEach(b => b.classList.toggle('active', b.dataset.val === '50'));
   openModal('modal-addItem');
   setTimeout(() => document.getElementById('item-name').focus(), 300);
 }
@@ -642,11 +763,13 @@ function openAddItemModal() {
 function saveItem() {
   const name = document.getElementById('item-name').value.trim();
   if (!name) return;
+  const metric = isMetricMode('item');
   state.items.push({
     id: uid(),
     name,
-    qty: parseFloat(document.getElementById('item-qty').value) || 1,
-    unit: document.getElementById('item-unit').value.trim(),
+    qtyType: metric ? 'metric' : 'fill',
+    qty: metric ? (parseFloat(document.getElementById('item-qty').value) || 1) : getActiveFill('item'),
+    unit: metric ? document.getElementById('item-unit').value : '%',
     store: document.getElementById('item-store').value,
     mhd: document.getElementById('item-mhd').value,
     category: document.getElementById('item-cat').value || 'Sonstiges'
@@ -660,13 +783,23 @@ function saveItem() {
 function openEditItemModal(id) {
   const item = state.items.find(i => i.id === id);
   if (!item) return;
+  const isFill = item.qtyType === 'fill';
   document.getElementById('edit-item-id').value = id;
   document.getElementById('edit-item-name').value = item.name;
-  document.getElementById('edit-item-qty').value = item.qty;
-  document.getElementById('edit-item-unit').value = item.unit||'';
   document.getElementById('edit-item-store').value = item.store;
   document.getElementById('edit-item-mhd').value = item.mhd||'';
   document.getElementById('edit-item-cat').value = item.category || 'Sonstiges';
+  // Mengentyp
+  document.querySelectorAll('#modal-editItem .qty-type-btn').forEach(b => b.classList.toggle('active', (b.dataset.type === 'fill') === isFill));
+  document.getElementById('edit-metric-fields').style.display = isFill ? 'none' : '';
+  document.getElementById('edit-fill-fields').style.display = isFill ? '' : 'none';
+  if (isFill) {
+    const pct = item.qty || 50;
+    document.querySelectorAll('#edit-fill-val .fill-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.val) === pct));
+  } else {
+    document.getElementById('edit-item-qty').value = item.qty;
+    document.getElementById('edit-item-unit').value = item.unit || 'kg';
+  }
   openModal('modal-editItem');
 }
 
@@ -674,10 +807,21 @@ function updateItem() {
   const id = document.getElementById('edit-item-id').value;
   const idx = state.items.findIndex(i => i.id === id);
   if (idx < 0) return;
+  const metric = isMetricMode('edit');
   state.items[idx] = {
     ...state.items[idx],
     name: document.getElementById('edit-item-name').value.trim(),
-    qty: parseFloat(document.getElementById('edit-item-qty').value) || 0,
+    qtyType: metric ? 'metric' : 'fill',
+    qty: metric ? (parseFloat(document.getElementById('edit-item-qty').value) || 0) : getActiveFill('edit'),
+    unit: metric ? document.getElementById('edit-item-unit').value : '%',
+    store: document.getElementById('edit-item-store').value,
+    mhd: document.getElementById('edit-item-mhd').value,
+    category: document.getElementById('edit-item-cat').value || 'Sonstiges'
+  };
+  saveState();
+  closeModal('modal-editItem');
+  renderPantry();
+}
     unit: document.getElementById('edit-item-unit').value.trim(),
     store: document.getElementById('edit-item-store').value,
     mhd: document.getElementById('edit-item-mhd').value,
