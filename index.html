@@ -822,15 +822,6 @@ function updateItem() {
   closeModal('modal-editItem');
   renderPantry();
 }
-    unit: document.getElementById('edit-item-unit').value.trim(),
-    store: document.getElementById('edit-item-store').value,
-    mhd: document.getElementById('edit-item-mhd').value,
-    category: document.getElementById('edit-item-cat').value || 'Sonstiges'
-  };
-  saveState();
-  closeModal('modal-editItem');
-  renderPantry();
-}
 
 function deleteItem() {
   const id = document.getElementById('edit-item-id').value;
@@ -1121,24 +1112,7 @@ loadState();
 updateHeader();
 renderPantry();
 
-// ─── PWA: SERVICE WORKER (inline als Blob) ───────────────────────────────────
-if ('serviceWorker' in navigator) {
-  const swCode = `
-    const CACHE = 'homecooking-v1';
-    self.addEventListener('install', e => {
-      self.skipWaiting();
-    });
-    self.addEventListener('activate', e => {
-      e.waitUntil(clients.claim());
-    });
-    self.addEventListener('fetch', e => {
-      e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
-    });
-  `;
-  const blob = new Blob([swCode], { type: 'application/javascript' });
-  const swUrl = URL.createObjectURL(blob);
-  navigator.serviceWorker.register(swUrl).catch(() => {});
-}
+// Service Worker wird extern registriert wenn vorhanden (nicht inline nötig)
 
 // ─── PWA: INSTALL-BANNER (nur wenn noch nicht installiert) ───────────────────
 function showInstallBanner() {
