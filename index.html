@@ -1149,23 +1149,23 @@ function showInstallBanner() {
   const banner = document.createElement('div');
   banner.id = 'installBanner';
   banner.style.cssText = `
-    position: fixed; top: 0; left: 50%; transform: translateX(-50%);
-    width: 100%; max-width: 900px; background: #1C1C1A; color: #fff;
-    padding: 14px 16px; display: flex; align-items: center; gap: 12px;
-    z-index: 9999; font-family: var(--font); font-size: 13px; line-height: 1.4;
+    position: fixed; bottom: calc(var(--tab-h) + 12px); left: 50%; transform: translateX(-50%);
+    width: calc(100% - 32px); max-width: 860px; background: #1C1C1A; color: #fff;
+    padding: 12px 14px; display: flex; align-items: center; gap: 12px;
+    z-index: 190; font-family: var(--font); font-size: 13px; line-height: 1.4;
+    border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    pointer-events: auto;
   `;
   banner.innerHTML = `
-    <span style="font-size:24px">🥗</span>
+    <span style="font-size:22px">🥗</span>
     <span style="flex:1">
       <strong style="display:block;font-size:14px">Als App installieren</strong>
-      Tippen Sie auf <strong>Teilen</strong> → <strong>Zum Homebildschirm</strong> für den besten Zugang.
+      Teilen → Zum Homebildschirm
     </span>
     <button onclick="document.getElementById('installBanner').remove();localStorage.setItem('hc_install_dismissed','1')"
       style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:4px 8px;line-height:1">✕</button>
   `;
-  document.body.prepend(banner);
-  // Shift header down
-  document.querySelector('.app-header').style.top = banner.offsetHeight + 'px';
+  document.body.appendChild(banner);
 }
 
 setTimeout(showInstallBanner, 1500);
