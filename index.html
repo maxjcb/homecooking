@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<title>Homecooking</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Homecooking">
+<meta name="theme-color" content="#4A7C59">
+<meta name="mobile-web-app-capable" content="yes">
+<style>
+  :root {
+    --bg: #FAFAF8;
+    --surface: #FFFFFF;
+    --surface2: #F2F1EE;
+    --border: #E4E2DC;
+    --text: #1C1C1A;
+    --text2: #6B6B67;
+    --text3: #9E9E9A;
+    --accent: #4A7C59;
+    --accent-light: #EAF2EC;
+    --accent-text: #2D5C3C;
+    --warn: #B45309;
+    --warn-light: #FEF3C7;
+    --danger: #9B1C1C;
+    --danger-light: #FEE2E2;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --tab-h: 72px;
+    --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; max-width: 900px; margin: 0 auto; }
+  
+  /* Header */
+  .app-header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 16px 20px 12px; padding-top: calc(16px + env(safe-area-inset-top)); position: sticky; top: 0; z-index: 100; }
+  .app-header h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.5px; color: var(--text); }
+  .header-sub { font-size: 13px; color: var(--text2); margin-top: 2px; }
+  .storage-bar { display: flex; gap: 8px; margin-top: 12px; }
+  .storage-pill { flex: 1; background: var(--surface2); border-radius: 8px; padding: 8px 10px; text-align: center; }
+  .storage-pill .sp-label { font-size: 11px; color: var(--text3); display: block; }
+  .storage-pill .sp-count { font-size: 18px; font-weight: 600; color: var(--text); display: block; line-height: 1.2; }
+  .storage-pill.warn .sp-count { color: var(--warn); }
+
+  /* Main content */
+  .main { flex: 1; overflow-y: auto; padding: 16px 20px; padding-bottom: calc(var(--tab-h) + 16px); }
+
+  /* Tab bar */
+  .tab-bar { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 900px; height: var(--tab-h); background: var(--surface); border-top: 1px solid var(--border); display: flex; z-index: 200; padding-bottom: env(safe-area-inset-bottom); }
+  .tab-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border: none; background: none; cursor: pointer; padding: 8px 4px; color: var(--text3); font-size: 11px; font-family: var(--font); transition: color 0.15s; }
+  .tab-btn svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .tab-btn.active { color: var(--accent); }
+
+  /* Views */
+  .view { display: none; }
+  .view.active { display: block; }
+
+  /* Section headers */
+  .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; margin-top: 20px; }
+  .section-header:first-child { margin-top: 0; }
+  .section-label { font-size: 13px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.05em; }
+
+  /* Cards */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 10px; }
+  .card-row { display: flex; align-items: center; gap: 12px; }
+  .card-info { flex: 1; min-width: 0; }
+  .card-name { font-size: 15px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card-meta { font-size: 13px; color: var(--text2); margin-top: 2px; }
+  .card-qty { font-size: 20px; font-weight: 600; color: var(--text); min-width: 40px; text-align: right; }
+  .card-unit { font-size: 12px; color: var(--text3); }
+  .badge { display: inline-block; font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 20px; margin-top: 4px; }
+  .badge-warn { background: var(--warn-light); color: var(--warn); }
+  .badge-danger { background: var(--danger-light); color: var(--danger); }
+  .badge-ok { background: var(--accent-light); color: var(--accent-text); }
+
+  /* Storage tabs */
+  .store-tabs { display: flex; gap: 6px; margin-bottom: 16px; }
+  .store-tab { flex: 1; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); font-size: 13px; font-weight: 500; color: var(--text2); cursor: pointer; text-align: center; font-family: var(--font); transition: all 0.15s; }
+  .store-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  /* Buttons */
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 14px; font-weight: 500; cursor: pointer; font-family: var(--font); transition: all 0.15s; }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn-sm { padding: 7px 12px; font-size: 13px; }
+  .btn-icon { padding: 8px; border-radius: 50%; }
+  .btn-danger { border-color: var(--danger-light); color: var(--danger); }
+  .btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* Fab */
+  .fab { position: fixed; bottom: calc(var(--tab-h) + 16px); right: 20px; width: 52px; height: 52px; border-radius: 50%; background: var(--accent); border: none; color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 12px rgba(74,124,89,0.35); z-index: 150; font-size: 26px; line-height: 1; transition: transform 0.15s; }
+  .fab:active { transform: scale(0.93); }
+
+  /* Modal */
+  .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 300; align-items: flex-end; justify-content: center; }
+  .modal-backdrop.open { display: flex; }
+  .modal { background: var(--surface); border-radius: var(--radius) var(--radius) 0 0; width: 100%; max-width: 900px; max-height: 90vh; overflow-y: auto; padding: 20px; padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
+  .modal-handle { width: 40px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 20px; }
+  .modal h2 { font-size: 18px; font-weight: 600; margin-bottom: 16px; }
+  .modal-footer { display: flex; gap: 10px; margin-top: 20px; }
+  .modal-footer .btn { flex: 1; justify-content: center; }
+
+  /* Form elements */
+  .form-group { margin-bottom: 14px; }
+  .form-label { font-size: 13px; font-weight: 500; color: var(--text2); margin-bottom: 6px; display: block; }
+  .form-input { width: 100%; padding: 11px 13px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 15px; font-family: var(--font); color: var(--text); background: var(--surface); outline: none; }
+  .form-input:focus { border-color: var(--accent); }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .form-select { width: 100%; padding: 11px 13px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 15px; font-family: var(--font); color: var(--text); background: var(--surface); outline: none; appearance: none; }
+  textarea.form-input { min-height: 80px; resize: vertical; }
+
+  /* Empty state */
+  .empty { text-align: center; padding: 40px 20px; color: var(--text3); }
+  .empty-icon { font-size: 40px; margin-bottom: 10px; }
+  .empty p { font-size: 15px; }
+
+  /* Recipe cards */
+  .recipe-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 10px; cursor: pointer; }
+  .recipe-card:active { background: var(--surface2); }
+  .recipe-title { font-size: 16px; font-weight: 600; color: var(--text); }
+  .recipe-meta { font-size: 13px; color: var(--text2); margin-top: 4px; }
+  .recipe-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .tag { font-size: 11px; padding: 3px 8px; border-radius: 20px; background: var(--accent-light); color: var(--accent-text); font-weight: 500; }
+  .tag-ai { background: #EDE9FE; color: #5B21B6; }
+
+  /* Grocery list */
+  .grocery-item { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; }
+  .grocery-check { width: 22px; height: 22px; border: 2px solid var(--border); border-radius: 50%; flex-shrink: 0; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+  .grocery-check.checked { background: var(--accent); border-color: var(--accent); }
+  .grocery-check.checked::after { content: ''; width: 6px; height: 10px; border: 2px solid #fff; border-top: none; border-left: none; transform: rotate(45deg) translateY(-1px); display: block; }
+  .grocery-text { flex: 1; font-size: 15px; color: var(--text); }
+  .grocery-text.checked { text-decoration: line-through; color: var(--text3); }
+
+  /* Settings */
+  .settings-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 16px; }
+  .settings-row { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
+  .settings-row:last-child { border-bottom: none; }
+  .settings-row-label { flex: 1; }
+  .settings-row-label strong { display: block; font-size: 15px; font-weight: 500; color: var(--text); }
+  .settings-row-label span { font-size: 13px; color: var(--text2); }
+  .api-key-display { font-size: 13px; color: var(--text3); font-family: monospace; }
+
+  /* AI loading */
+  .ai-thinking { display: flex; align-items: center; gap: 10px; padding: 16px; background: var(--accent-light); border-radius: var(--radius); margin-bottom: 12px; color: var(--accent-text); font-size: 14px; }
+  .dots { display: flex; gap: 4px; }
+  .dots span { width: 6px; height: 6px; background: var(--accent); border-radius: 50%; animation: bounce 1.2s infinite; }
+  .dots span:nth-child(2) { animation-delay: 0.2s; }
+  .dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-6px)} }
+
+  /* Recipe detail */
+  .recipe-detail-section { margin-top: 16px; }
+  .recipe-detail-section h3 { font-size: 14px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 10px; }
+  .ingredient-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .ingredient-row:last-child { border-bottom: none; }
+  .step-row { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 14px; line-height: 1.5; }
+  .step-row:last-child { border-bottom: none; }
+  .step-num { width: 24px; height: 24px; background: var(--accent); color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; flex-shrink: 0; margin-top: 1px; }
+
+  /* Notification dot */
+  .notif-dot { width: 8px; height: 8px; background: var(--warn); border-radius: 50%; display: inline-block; margin-left: 4px; vertical-align: middle; }
+
+  .search-box { width: 100%; padding: 10px 13px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 15px; font-family: var(--font); color: var(--text); background: var(--surface2); outline: none; margin-bottom: 14px; }
+  .search-box:focus { background: var(--surface); border-color: var(--accent); }
+
+  .profile-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface2); font-size: 13px; cursor: pointer; margin-right: 6px; margin-bottom: 6px; font-family: var(--font); }
+  .profile-chip.active { background: var(--accent-light); border-color: var(--accent); color: var(--accent-text); font-weight: 500; }
+</style>
+</head>
+<body>
+
+<!-- APP HEADER -->
+<div class="app-header">
+  <div style="display:flex;align-items:baseline;justify-content:space-between">
+    <h1>Homecooking</h1>
+    <span class="header-sub" id="headerDate"></span>
+  </div>
+  <div class="storage-bar" id="storageBar">
+    <div class="storage-pill"><span class="sp-label">Pantry</span><span class="sp-count" id="countPantry">0</span></div>
+    <div class="storage-pill"><span class="sp-label">Kühlschrank</span><span class="sp-count" id="countFridge">0</span></div>
+    <div class="storage-pill"><span class="sp-label">Tiefkühler</span><span class="sp-count" id="countFreezer">0</span></div>
+    <div class="storage-pill warn"><span class="sp-label">Läuft ab</span><span class="sp-count" id="countExpiring">0</span></div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- VORRÄTE VIEW -->
+  <div class="view active" id="view-pantry">
+    <div class="store-tabs">
+      <button class="store-tab active" onclick="switchStore('pantry',this)">Pantry</button>
+      <button class="store-tab" onclick="switchStore('fridge',this)">Kühlschrank</button>
+      <button class="store-tab" onclick="switchStore('freezer',this)">Tiefkühler</button>
+    </div>
+    <input class="search-box" placeholder="Vorrat suchen ..." id="pantrySearch" oninput="renderPantry()">
+    <div id="pantryList"></div>
+  </div>
+
+  <!-- REZEPTE VIEW -->
+  <div class="view" id="view-recipes">
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <button class="btn btn-sm btn-primary" onclick="openSuggestModal()" style="flex:1;justify-content:center">
+        <svg viewBox="0 0 24 24"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+        Vorschläge
+      </button>
+      <button class="btn btn-sm" onclick="openRecipeModal()" style="flex:1;justify-content:center">
+        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Eigenes Rezept
+      </button>
+    </div>
+    <input class="search-box" placeholder="Rezept suchen ..." id="recipeSearch" oninput="renderRecipes()">
+    <div id="recipeList"></div>
+  </div>
+
+  <!-- EINKAUFSLISTE VIEW -->
+  <div class="view" id="view-grocery">
+    <div class="section-header" style="margin-top:0">
+      <span class="section-label">Einkaufsliste</span>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-sm" onclick="exportToReminders()">
+          <svg viewBox="0 0 24 24"><path d="M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7M12 3v12m-4-4l4 4 4-4"/></svg>
+          Apple Erinnerungen
+        </button>
+        <button class="btn btn-sm btn-danger" onclick="clearChecked()">Abgehakte löschen</button>
+      </div>
+    </div>
+    <div id="groceryList"></div>
+    <div style="margin-top:12px;display:flex;gap:8px">
+      <input class="form-input" id="groceryInput" placeholder="Artikel hinzufügen ..." style="flex:1" onkeydown="if(event.key==='Enter')addGroceryItem()">
+      <button class="btn btn-primary" onclick="addGroceryItem()">
+        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- EINSTELLUNGEN VIEW -->
+  <div class="view" id="view-settings">
+    <div class="section-header" style="margin-top:0"><span class="section-label">KI-Rezeptvorschläge</span></div>
+    <div class="settings-card">
+      <div class="settings-row">
+        <div class="settings-row-label">
+          <strong>Claude API (geplant)</strong>
+          <span>Wird in einem späteren Schritt eingerichtet. Vorschläge funktionieren aktuell regelbasiert.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-header"><span class="section-label">Ernährungsprofile</span></div>
+    <div class="settings-card">
+      <div class="settings-row">
+        <div class="settings-row-label">
+          <strong>Person 1</strong>
+          <span id="p1ProfileDisplay">–</span>
+        </div>
+        <button class="btn btn-sm" onclick="openProfileModal(1)">Bearbeiten</button>
+      </div>
+      <div class="settings-row">
+        <div class="settings-row-label">
+          <strong>Person 2</strong>
+          <span id="p2ProfileDisplay">–</span>
+        </div>
+        <button class="btn btn-sm" onclick="openProfileModal(2)">Bearbeiten</button>
+      </div>
+    </div>
+
+    <div class="section-header"><span class="section-label">Daten</span></div>
+    <div class="settings-card">
+      <div class="settings-row">
+        <div class="settings-row-label">
+          <strong>Daten exportieren</strong>
+          <span>Alle Vorräte, Rezepte und Listen als JSON</span>
+        </div>
+        <button class="btn btn-sm" onclick="exportData()">Export</button>
+      </div>
+      <div class="settings-row">
+        <div class="settings-row-label">
+          <strong>Daten importieren</strong>
+          <span>JSON-Datei laden</span>
+        </div>
+        <button class="btn btn-sm" onclick="document.getElementById('importFile').click()">Import</button>
+        <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TAB BAR -->
+<nav class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('pantry',this)" id="tab-pantry">
+    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    Vorräte
+  </button>
+  <button class="tab-btn" onclick="switchTab('recipes',this)" id="tab-recipes">
+    <svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 017 7c0 3.5-2 6-5 7v2H10v-2c-3-1-5-3.5-5-7a7 7 0 017-7z"/><line x1="10" y1="20" x2="14" y2="20"/></svg>
+    Rezepte
+  </button>
+  <button class="tab-btn" onclick="switchTab('grocery',this)" id="tab-grocery">
+    <svg viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+    Einkauf
+  </button>
+  <button class="tab-btn" onclick="switchTab('settings',this)" id="tab-settings">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+    Einstellungen
+  </button>
+</nav>
+
+<!-- FAB (nur auf Vorrats-Tab) -->
+<button class="fab" id="mainFab" onclick="openAddItemModal()">+</button>
+
+<!-- MODAL: Artikel hinzufügen -->
+<div class="modal-backdrop" id="modal-addItem">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2>Artikel hinzufügen</h2>
+    <div class="form-group">
+      <label class="form-label">Name</label>
+      <input class="form-input" id="item-name" placeholder="z. B. Tomaten">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Menge</label>
+        <input class="form-input" id="item-qty" type="number" min="0" step="0.1" placeholder="1">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Einheit</label>
+        <input class="form-input" id="item-unit" placeholder="kg, Stk, ml ...">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Lagerort</label>
+      <select class="form-select" id="item-store">
+        <option value="pantry">Pantry</option>
+        <option value="fridge">Kühlschrank</option>
+        <option value="freezer">Tiefkühler</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Mindesthaltbarkeitsdatum (MHD)</label>
+      <input class="form-input" id="item-mhd" type="date">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Kategorie</label>
+      <input class="form-input" id="item-cat" placeholder="z. B. Gemüse, Gewürze, Milchprodukte ...">
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-addItem')">Abbrechen</button>
+      <button class="btn btn-primary" onclick="saveItem()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Artikel bearbeiten -->
+<div class="modal-backdrop" id="modal-editItem">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2>Artikel bearbeiten</h2>
+    <input type="hidden" id="edit-item-id">
+    <div class="form-group">
+      <label class="form-label">Name</label>
+      <input class="form-input" id="edit-item-name">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Menge</label>
+        <input class="form-input" id="edit-item-qty" type="number" min="0" step="0.1">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Einheit</label>
+        <input class="form-input" id="edit-item-unit">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Lagerort</label>
+      <select class="form-select" id="edit-item-store">
+        <option value="pantry">Pantry</option>
+        <option value="fridge">Kühlschrank</option>
+        <option value="freezer">Tiefkühler</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">MHD</label>
+      <input class="form-input" id="edit-item-mhd" type="date">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Kategorie</label>
+      <input class="form-input" id="edit-item-cat">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-danger" onclick="deleteItem()">Löschen</button>
+      <button class="btn btn-primary" onclick="updateItem()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Rezeptvorschläge (regelbasiert) -->
+<div class="modal-backdrop" id="modal-suggest">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2>Passende Rezepte</h2>
+    <p style="font-size:14px;color:var(--text2);margin-bottom:16px">Rezepte, deren Zutaten mit Ihren Vorräten übereinstimmen.</p>
+    <div id="suggestResult"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-suggest')">Schließen</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Eigenes Rezept -->
+<div class="modal-backdrop" id="modal-recipe">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2>Rezept hinzufügen</h2>
+    <input type="hidden" id="recipe-edit-id">
+    <div class="form-group">
+      <label class="form-label">Name</label>
+      <input class="form-input" id="recipe-name" placeholder="Rezeptname">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Dauer (Min.)</label>
+        <input class="form-input" id="recipe-time" type="number" placeholder="30">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Portionen</label>
+        <input class="form-input" id="recipe-portions" type="number" placeholder="2">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Zutaten (eine pro Zeile)</label>
+      <textarea class="form-input" id="recipe-ingredients" placeholder="200g Tomaten&#10;1 Zwiebel&#10;2 EL Olivenöl"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Zubereitung (Schritte, eine pro Zeile)</label>
+      <textarea class="form-input" id="recipe-steps" placeholder="Zwiebeln würfeln und anbraten.&#10;Tomaten zugeben und köcheln lassen."></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Tags (kommagetrennt)</label>
+      <input class="form-input" id="recipe-tags" placeholder="vegetarisch, schnell, Pasta">
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-recipe')">Abbrechen</button>
+      <button class="btn btn-primary" onclick="saveRecipe()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Rezept Detail -->
+<div class="modal-backdrop" id="modal-recipeDetail">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div id="recipeDetailContent"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-recipeDetail')">Schließen</button>
+      <button class="btn btn-sm" onclick="editRecipeFromDetail()" id="recipeDetailEditBtn">Bearbeiten</button>
+      <button class="btn btn-primary" onclick="addRecipeToGrocery()" id="recipeToGroceryBtn">Zur Einkaufsliste</button>
+    </div>
+  </div>
+</div>
+
+
+
+
+<!-- MODAL: Profil -->
+<div class="modal-backdrop" id="modal-profile">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2 id="profileModalTitle">Ernährungsprofil</h2>
+    <input type="hidden" id="profilePersonNum">
+    <div class="form-group">
+      <label class="form-label">Name</label>
+      <input class="form-input" id="profileName" placeholder="z. B. Anna">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Ernährungsweise & Einschränkungen</label>
+      <textarea class="form-input" id="profileDiet" placeholder="z. B. vegetarisch, keine Nüsse, mag keine Pilze ..."></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-profile')">Abbrechen</button>
+      <button class="btn btn-primary" onclick="saveProfile()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────────────────────────
+let state = {
+  items: [],
+  recipes: [],
+  grocery: [],
+  profiles: { 1: { name: 'Person 1', diet: 'vegetarisch' }, 2: { name: 'Person 2', diet: 'vegetarisch' } },
+  apiKey: '',
+  currentStore: 'pantry',
+  currentRecipeId: null,
+  selectedProfiles: [1, 2]
+};
+
+function loadState() {
+  try {
+    const s = localStorage.getItem('hc_state');
+    if (s) state = { ...state, ...JSON.parse(s) };
+  } catch(e) {}
+}
+
+function saveState() {
+  localStorage.setItem('hc_state', JSON.stringify(state));
+}
+
+// ─── UTILS ───────────────────────────────────────────────────────────────────
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+
+function daysUntil(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  const now = new Date();
+  now.setHours(0,0,0,0);
+  return Math.ceil((d - now) / 86400000);
+}
+
+function mhdBadge(dateStr) {
+  const days = daysUntil(dateStr);
+  if (days === null) return '';
+  if (days < 0) return `<span class="badge badge-danger">Abgelaufen</span>`;
+  if (days === 0) return `<span class="badge badge-danger">Läuft heute ab</span>`;
+  if (days <= 3) return `<span class="badge badge-warn">Noch ${days} Tag${days===1?'':'e'}</span>`;
+  if (days <= 7) return `<span class="badge badge-warn">Noch ${days} Tage</span>`;
+  return '';
+}
+
+function fmtDate(dateStr) {
+  if (!dateStr) return '';
+  const [y,m,d] = dateStr.split('-');
+  return `${d}.${m}.${y}`;
+}
+
+// ─── HEADER ──────────────────────────────────────────────────────────────────
+function updateHeader() {
+  const now = new Date();
+  document.getElementById('headerDate').textContent = now.toLocaleDateString('de-DE', {weekday:'long', day:'numeric', month:'long'});
+  document.getElementById('countPantry').textContent = state.items.filter(i=>i.store==='pantry').length;
+  document.getElementById('countFridge').textContent = state.items.filter(i=>i.store==='fridge').length;
+  document.getElementById('countFreezer').textContent = state.items.filter(i=>i.store==='freezer').length;
+  const expiring = state.items.filter(i => { const d = daysUntil(i.mhd); return d !== null && d <= 3; });
+  document.getElementById('countExpiring').textContent = expiring.length;
+}
+
+// ─── TABS ─────────────────────────────────────────────────────────────────────
+function switchTab(name, el) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('view-' + name).classList.add('active');
+  el.classList.add('active');
+  document.getElementById('mainFab').style.display = name === 'pantry' ? 'flex' : 'none';
+  if (name === 'pantry') renderPantry();
+  if (name === 'recipes') renderRecipes();
+  if (name === 'grocery') renderGrocery();
+  if (name === 'settings') renderSettings();
+}
+
+function switchStore(name, el) {
+  state.currentStore = name;
+  document.querySelectorAll('.store-tab').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderPantry();
+}
+
+// ─── MODALS ───────────────────────────────────────────────────────────────────
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+document.querySelectorAll('.modal-backdrop').forEach(bd => {
+  bd.addEventListener('click', e => { if (e.target === bd) bd.classList.remove('open'); });
+});
+
+// ─── PANTRY ───────────────────────────────────────────────────────────────────
+function renderPantry() {
+  const q = (document.getElementById('pantrySearch').value || '').toLowerCase();
+  const items = state.items.filter(i => i.store === state.currentStore && (!q || i.name.toLowerCase().includes(q) || (i.category||'').toLowerCase().includes(q)));
+  const list = document.getElementById('pantryList');
+  if (!items.length) {
+    list.innerHTML = `<div class="empty"><div class="empty-icon">🥬</div><p>Noch keine Artikel hier.<br>Tippe auf + um etwas hinzuzufügen.</p></div>`;
+    return;
+  }
+  // group by category
+  const cats = {};
+  items.forEach(i => { const c = i.category || 'Sonstiges'; if (!cats[c]) cats[c]=[]; cats[c].push(i); });
+  list.innerHTML = Object.entries(cats).map(([cat, its]) => `
+    <div class="section-header"><span class="section-label">${cat}</span></div>
+    ${its.map(item => `
+      <div class="card" onclick="openEditItemModal('${item.id}')">
+        <div class="card-row">
+          <div class="card-info">
+            <div class="card-name">${item.name}</div>
+            <div class="card-meta">${item.mhd ? 'MHD: ' + fmtDate(item.mhd) : ''}</div>
+            ${mhdBadge(item.mhd)}
+          </div>
+          <div style="text-align:right">
+            <div class="card-qty">${item.qty}</div>
+            <div class="card-unit">${item.unit||''}</div>
+          </div>
+        </div>
+      </div>
+    `).join('')}
+  `).join('');
+  updateHeader();
+}
+
+function openAddItemModal() {
+  document.getElementById('item-name').value = '';
+  document.getElementById('item-qty').value = '';
+  document.getElementById('item-unit').value = '';
+  document.getElementById('item-store').value = state.currentStore;
+  document.getElementById('item-mhd').value = '';
+  document.getElementById('item-cat').value = '';
+  openModal('modal-addItem');
+  setTimeout(() => document.getElementById('item-name').focus(), 300);
+}
+
+function saveItem() {
+  const name = document.getElementById('item-name').value.trim();
+  if (!name) return;
+  state.items.push({
+    id: uid(),
+    name,
+    qty: parseFloat(document.getElementById('item-qty').value) || 1,
+    unit: document.getElementById('item-unit').value.trim(),
+    store: document.getElementById('item-store').value,
+    mhd: document.getElementById('item-mhd').value,
+    category: document.getElementById('item-cat').value.trim() || 'Sonstiges'
+  });
+  saveState();
+  closeModal('modal-addItem');
+  renderPantry();
+  updateHeader();
+}
+
+function openEditItemModal(id) {
+  const item = state.items.find(i => i.id === id);
+  if (!item) return;
+  document.getElementById('edit-item-id').value = id;
+  document.getElementById('edit-item-name').value = item.name;
+  document.getElementById('edit-item-qty').value = item.qty;
+  document.getElementById('edit-item-unit').value = item.unit||'';
+  document.getElementById('edit-item-store').value = item.store;
+  document.getElementById('edit-item-mhd').value = item.mhd||'';
+  document.getElementById('edit-item-cat').value = item.category||'';
+  openModal('modal-editItem');
+}
+
+function updateItem() {
+  const id = document.getElementById('edit-item-id').value;
+  const idx = state.items.findIndex(i => i.id === id);
+  if (idx < 0) return;
+  state.items[idx] = {
+    ...state.items[idx],
+    name: document.getElementById('edit-item-name').value.trim(),
+    qty: parseFloat(document.getElementById('edit-item-qty').value) || 0,
+    unit: document.getElementById('edit-item-unit').value.trim(),
+    store: document.getElementById('edit-item-store').value,
+    mhd: document.getElementById('edit-item-mhd').value,
+    category: document.getElementById('edit-item-cat').value.trim() || 'Sonstiges'
+  };
+  saveState();
+  closeModal('modal-editItem');
+  renderPantry();
+}
+
+function deleteItem() {
+  const id = document.getElementById('edit-item-id').value;
+  state.items = state.items.filter(i => i.id !== id);
+  saveState();
+  closeModal('modal-editItem');
+  renderPantry();
+}
+
+// ─── RECIPES ─────────────────────────────────────────────────────────────────
+function renderRecipes() {
+  const q = (document.getElementById('recipeSearch').value || '').toLowerCase();
+  const recipes = state.recipes.filter(r => !q || r.name.toLowerCase().includes(q) || (r.tags||[]).some(t=>t.toLowerCase().includes(q)));
+  const list = document.getElementById('recipeList');
+  if (!recipes.length) {
+    list.innerHTML = `<div class="empty"><div class="empty-icon">🍳</div><p>Noch keine Rezepte.<br>KI-Vorschläge oder eigene Rezepte hinzufügen.</p></div>`;
+    return;
+  }
+  list.innerHTML = recipes.map(r => `
+    <div class="recipe-card" onclick="openRecipeDetail('${r.id}')">
+      <div class="recipe-title">${r.name}</div>
+      <div class="recipe-meta">${r.time ? r.time + ' Min. · ' : ''}${r.portions ? r.portions + ' Portionen' : ''}</div>
+      <div class="recipe-tags">
+        ${r.aiGenerated ? '<span class="tag tag-ai">KI</span>' : '<span class="tag">Eigenes Rezept</span>'}
+        ${(r.tags||[]).map(t=>`<span class="tag">${t}</span>`).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function openRecipeModal(editId) {
+  document.getElementById('recipe-edit-id').value = editId || '';
+  if (editId) {
+    const r = state.recipes.find(r => r.id === editId);
+    if (!r) return;
+    document.getElementById('recipe-name').value = r.name;
+    document.getElementById('recipe-time').value = r.time||'';
+    document.getElementById('recipe-portions').value = r.portions||'';
+    document.getElementById('recipe-ingredients').value = (r.ingredients||[]).join('\n');
+    document.getElementById('recipe-steps').value = (r.steps||[]).join('\n');
+    document.getElementById('recipe-tags').value = (r.tags||[]).join(', ');
+  } else {
+    ['recipe-name','recipe-time','recipe-portions','recipe-ingredients','recipe-steps','recipe-tags'].forEach(id => document.getElementById(id).value = '');
+  }
+  openModal('modal-recipe');
+}
+
+function saveRecipe() {
+  const name = document.getElementById('recipe-name').value.trim();
+  if (!name) return;
+  const editId = document.getElementById('recipe-edit-id').value;
+  const recipe = {
+    id: editId || uid(),
+    name,
+    time: parseInt(document.getElementById('recipe-time').value)||null,
+    portions: parseInt(document.getElementById('recipe-portions').value)||2,
+    ingredients: document.getElementById('recipe-ingredients').value.split('\n').map(s=>s.trim()).filter(Boolean),
+    steps: document.getElementById('recipe-steps').value.split('\n').map(s=>s.trim()).filter(Boolean),
+    tags: document.getElementById('recipe-tags').value.split(',').map(s=>s.trim()).filter(Boolean),
+    aiGenerated: false
+  };
+  if (editId) {
+    const idx = state.recipes.findIndex(r => r.id === editId);
+    if (idx >= 0) state.recipes[idx] = recipe;
+  } else {
+    state.recipes.push(recipe);
+  }
+  saveState();
+  closeModal('modal-recipe');
+  closeModal('modal-recipeDetail');
+  renderRecipes();
+}
+
+function openRecipeDetail(id) {
+  const r = state.recipes.find(r => r.id === id);
+  if (!r) return;
+  state.currentRecipeId = id;
+  document.getElementById('recipeDetailContent').innerHTML = `
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:4px">
+      <h2 style="font-size:20px;font-weight:600">${r.name}</h2>
+      ${r.aiGenerated ? '<span class="tag tag-ai" style="flex-shrink:0;margin-top:3px">KI</span>' : ''}
+    </div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:4px">${r.time ? r.time + ' Min. · ' : ''}${r.portions ? r.portions + ' Portionen' : ''}</div>
+    <div class="recipe-tags" style="margin-bottom:0">${(r.tags||[]).map(t=>`<span class="tag">${t}</span>`).join('')}</div>
+    <div class="recipe-detail-section">
+      <h3>Zutaten</h3>
+      ${(r.ingredients||[]).map(i=>`<div class="ingredient-row"><span>${i}</span></div>`).join('')}
+    </div>
+    <div class="recipe-detail-section">
+      <h3>Zubereitung</h3>
+      ${(r.steps||[]).map((s,i)=>`<div class="step-row"><div class="step-num">${i+1}</div><div>${s}</div></div>`).join('')}
+    </div>
+  `;
+  openModal('modal-recipeDetail');
+}
+
+function editRecipeFromDetail() {
+  closeModal('modal-recipeDetail');
+  openRecipeModal(state.currentRecipeId);
+}
+
+function addRecipeToGrocery() {
+  const r = state.recipes.find(r => r.id === state.currentRecipeId);
+  if (!r) return;
+  (r.ingredients||[]).forEach(ing => {
+    state.grocery.push({ id: uid(), text: ing, checked: false });
+  });
+  saveState();
+  closeModal('modal-recipeDetail');
+  switchTab('grocery', document.getElementById('tab-grocery'));
+}
+
+// ─── REGELBASIERTE VORSCHLÄGE ────────────────────────────────────────────────
+function openSuggestModal() {
+  const result = document.getElementById('suggestResult');
+  if (!state.recipes.length) {
+    result.innerHTML = `<div class="empty"><div class="empty-icon">🍳</div><p>Noch keine Rezepte gespeichert.<br>Fügen Sie zuerst eigene Rezepte hinzu.</p></div>`;
+    openModal('modal-suggest');
+    return;
+  }
+  const pantryNames = state.items.map(i => i.name.toLowerCase());
+
+  // Für jedes Rezept: wie viele Zutaten sind im Vorrat?
+  const scored = state.recipes.map(r => {
+    const ings = (r.ingredients || []);
+    if (!ings.length) return { r, score: 0, matched: 0, total: 0 };
+    const matched = ings.filter(ing => {
+      const ingLower = ing.toLowerCase();
+      return pantryNames.some(p => ingLower.includes(p) || p.includes(ingLower.split(' ')[0]));
+    }).length;
+    return { r, score: matched / ings.length, matched, total: ings.length };
+  }).sort((a,b) => b.score - a.score);
+
+  const hasAny = scored.some(s => s.matched > 0);
+
+  result.innerHTML = scored.map(({ r, score, matched, total }) => {
+    const pct = Math.round(score * 100);
+    const barColor = pct >= 70 ? 'var(--accent)' : pct >= 40 ? 'var(--warn)' : 'var(--border)';
+    return `
+      <div class="recipe-card" onclick="closeModal('modal-suggest');openRecipeDetail('${r.id}')" style="margin-bottom:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <div class="recipe-title" style="flex:1">${r.name}</div>
+          <span style="font-size:12px;font-weight:600;color:${pct>=70?'var(--accent-text)':pct>=40?'var(--warn)':'var(--text3)'}">${pct}%</span>
+        </div>
+        <div style="height:4px;background:var(--surface2);border-radius:2px;margin:8px 0">
+          <div style="height:4px;width:${pct}%;background:${barColor};border-radius:2px;transition:width 0.3s"></div>
+        </div>
+        <div class="recipe-meta">${matched} von ${total} Zutaten im Vorrat · ${r.time ? r.time + ' Min.' : ''}</div>
+        <div class="recipe-tags" style="margin-top:6px">
+          ${r.aiGenerated ? '<span class="tag tag-ai">KI</span>' : ''}
+          ${(r.tags||[]).map(t=>`<span class="tag">${t}</span>`).join('')}
+        </div>
+      </div>`;
+  }).join('') || `<div class="empty"><p>Keine Rezepte vorhanden.</p></div>`;
+
+  if (!hasAny && state.items.length === 0) {
+    result.innerHTML = `<div class="empty"><div class="empty-icon">🥕</div><p>Erfassen Sie zuerst Ihre Vorräte,<br>damit die Vorschläge funktionieren.</p></div>` + result.innerHTML;
+  }
+
+  openModal('modal-suggest');
+}
+
+// ─── GROCERY ─────────────────────────────────────────────────────────────────
+function renderGrocery() {
+  const list = document.getElementById('groceryList');
+  if (!state.grocery.length) {
+    list.innerHTML = `<div class="empty"><div class="empty-icon">🛒</div><p>Die Einkaufsliste ist leer.</p></div>`;
+    return;
+  }
+  list.innerHTML = state.grocery.map(g => `
+    <div class="grocery-item">
+      <div class="grocery-check ${g.checked?'checked':''}" onclick="toggleGrocery('${g.id}')"></div>
+      <span class="grocery-text ${g.checked?'checked':''}">${g.text}</span>
+      <button class="btn btn-sm btn-danger" onclick="removeGrocery('${g.id}')" style="padding:4px 8px;font-size:12px">✕</button>
+    </div>
+  `).join('');
+}
+
+function addGroceryItem() {
+  const input = document.getElementById('groceryInput');
+  const text = input.value.trim();
+  if (!text) return;
+  state.grocery.push({ id: uid(), text, checked: false });
+  input.value = '';
+  saveState();
+  renderGrocery();
+}
+
+function toggleGrocery(id) {
+  const g = state.grocery.find(g=>g.id===id);
+  if (g) g.checked = !g.checked;
+  saveState();
+  renderGrocery();
+}
+
+function removeGrocery(id) {
+  state.grocery = state.grocery.filter(g=>g.id!==id);
+  saveState();
+  renderGrocery();
+}
+
+function clearChecked() {
+  state.grocery = state.grocery.filter(g=>!g.checked);
+  saveState();
+  renderGrocery();
+}
+
+function exportToReminders() {
+  const unchecked = state.grocery.filter(g=>!g.checked);
+  if (!unchecked.length) { alert('Keine Artikel auf der Liste.'); return; }
+  // Open each item as a separate reminder via URL scheme
+  // iOS supports reminders:// for opening the app; we encode items as a text share instead
+  const text = unchecked.map(g => g.text).join('\n');
+  // Use the share API if available (iPad supports it)
+  if (navigator.share) {
+    navigator.share({ title: 'Einkaufsliste', text });
+  } else {
+    // Fallback: copy to clipboard
+    navigator.clipboard.writeText(text).then(() => {
+      alert('Einkaufsliste wurde in die Zwischenablage kopiert.\nÖffnen Sie Apple Erinnerungen und fügen Sie den Text ein.');
+    });
+  }
+}
+
+// ─── SETTINGS ────────────────────────────────────────────────────────────────
+function renderSettings() {
+  document.getElementById('p1ProfileDisplay').textContent = `${state.profiles[1].name||'Person 1'} · ${state.profiles[1].diet||'–'}`;
+  document.getElementById('p2ProfileDisplay').textContent = `${state.profiles[2].name||'Person 2'} · ${state.profiles[2].diet||'–'}`;
+}
+
+
+function openProfileModal(n) {
+  document.getElementById('profilePersonNum').value = n;
+  document.getElementById('profileModalTitle').textContent = 'Profil: Person ' + n;
+  document.getElementById('profileName').value = state.profiles[n].name || '';
+  document.getElementById('profileDiet').value = state.profiles[n].diet || '';
+  openModal('modal-profile');
+}
+
+function saveProfile() {
+  const n = parseInt(document.getElementById('profilePersonNum').value);
+  state.profiles[n] = {
+    name: document.getElementById('profileName').value.trim() || 'Person ' + n,
+    diet: document.getElementById('profileDiet').value.trim()
+  };
+  saveState();
+  closeModal('modal-profile');
+  renderSettings();
+}
+
+// ─── DATA EXPORT / IMPORT ────────────────────────────────────────────────────
+function exportData() {
+  const data = { items: state.items, recipes: state.recipes, grocery: state.grocery, profiles: state.profiles };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'homecooking-backup-' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importData(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (data.items) state.items = data.items;
+      if (data.recipes) state.recipes = data.recipes;
+      if (data.grocery) state.grocery = data.grocery;
+      if (data.profiles) state.profiles = data.profiles;
+      saveState();
+      updateHeader();
+      renderSettings();
+      alert('Daten erfolgreich importiert.');
+    } catch(err) {
+      alert('Fehler beim Importieren: Ungültige JSON-Datei.');
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+loadState();
+updateHeader();
+renderPantry();
+
+// ─── PWA: SERVICE WORKER (inline als Blob) ───────────────────────────────────
+if ('serviceWorker' in navigator) {
+  const swCode = `
+    const CACHE = 'homecooking-v1';
+    self.addEventListener('install', e => {
+      self.skipWaiting();
+    });
+    self.addEventListener('activate', e => {
+      e.waitUntil(clients.claim());
+    });
+    self.addEventListener('fetch', e => {
+      e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+    });
+  `;
+  const blob = new Blob([swCode], { type: 'application/javascript' });
+  const swUrl = URL.createObjectURL(blob);
+  navigator.serviceWorker.register(swUrl).catch(() => {});
+}
+
+// ─── PWA: INSTALL-BANNER (nur wenn noch nicht installiert) ───────────────────
+function showInstallBanner() {
+  const isStandalone = window.navigator.standalone === true;
+  const dismissed = localStorage.getItem('hc_install_dismissed');
+  if (isStandalone || dismissed) return;
+
+  const banner = document.createElement('div');
+  banner.id = 'installBanner';
+  banner.style.cssText = `
+    position: fixed; top: 0; left: 50%; transform: translateX(-50%);
+    width: 100%; max-width: 900px; background: #1C1C1A; color: #fff;
+    padding: 14px 16px; display: flex; align-items: center; gap: 12px;
+    z-index: 9999; font-family: var(--font); font-size: 13px; line-height: 1.4;
+  `;
+  banner.innerHTML = `
+    <span style="font-size:24px">🥗</span>
+    <span style="flex:1">
+      <strong style="display:block;font-size:14px">Als App installieren</strong>
+      Tippen Sie auf <strong>Teilen</strong> → <strong>Zum Homebildschirm</strong> für den besten Zugang.
+    </span>
+    <button onclick="document.getElementById('installBanner').remove();localStorage.setItem('hc_install_dismissed','1')"
+      style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:4px 8px;line-height:1">✕</button>
+  `;
+  document.body.prepend(banner);
+  // Shift header down
+  document.querySelector('.app-header').style.top = banner.offsetHeight + 'px';
+}
+
+setTimeout(showInstallBanner, 1500);
+</script>
+</body>
+</html>
