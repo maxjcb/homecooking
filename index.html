@@ -9,6 +9,7 @@
 <meta name="apple-mobile-web-app-title" content="Homecooking">
 <meta name="theme-color" content="#4A7C59">
 <meta name="mobile-web-app-capable" content="yes">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
   :root {
     --bg: #FAFAF8;
@@ -182,9 +183,37 @@
   .fill-jar { width: 28px; height: 36px; border: 2px solid var(--border); border-radius: 3px 3px 5px 5px; position: relative; overflow: hidden; background: var(--surface2); }
   .fill-jar-inner { position: absolute; bottom: 0; left: 0; right: 0; background: var(--accent); opacity: 0.6; transition: height 0.3s; }
   .fill-pct { font-size: 11px; color: var(--text3); font-weight: 500; }
+
+  /* Login */
+  .auth-screen { display: none; min-height: 100vh; align-items: center; justify-content: center; padding: 24px; }
+  .auth-box { width: 100%; max-width: 360px; }
+  .auth-box h1 { font-size: 24px; font-weight: 600; margin-bottom: 4px; text-align: center; }
+  .auth-box p { font-size: 14px; color: var(--text2); text-align: center; margin-bottom: 24px; }
+  .auth-error { font-size: 13px; color: var(--danger); margin-top: 10px; text-align: center; min-height: 18px; }
 </style>
 </head>
 <body>
+
+<!-- LOGIN -->
+<div class="auth-screen" id="authScreen">
+  <div class="auth-box">
+    <h1>Homecooking</h1>
+    <p>Bitte anmelden, um auf eure Vorräte und Rezepte zuzugreifen.</p>
+    <div class="form-group">
+      <label class="form-label">E-Mail</label>
+      <input class="form-input" id="auth-email" type="email" autocomplete="username">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Passwort</label>
+      <input class="form-input" id="auth-password" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')login()">
+    </div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="login()">Anmelden</button>
+    <div class="auth-error" id="authError"></div>
+  </div>
+</div>
+
+<!-- APP SHELL (nur sichtbar nach Login) -->
+<div id="appShell" style="display:none">
 
 <!-- APP HEADER -->
 <div class="app-header">
@@ -299,6 +328,17 @@
         <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
       </div>
     </div>
+
+    <div class="section-header"><span class="section-label">Konto</span></div>
+    <div class="settings-card">
+      <div class="settings-row">
+        <div class="settings-row-label">
+          <strong>Angemeldet als</strong>
+          <span id="accountEmailDisplay">–</span>
+        </div>
+        <button class="btn btn-sm btn-danger" onclick="logout()">Abmelden</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -324,6 +364,8 @@
 
 <!-- FAB (nur auf Vorrats-Tab) -->
 <button class="fab" id="mainFab" onclick="openAddItemModal()">+</button>
+
+</div> <!-- /appShell -->
 
 <!-- MODAL: Artikel hinzufügen -->
 <div class="modal-backdrop" id="modal-addItem">
@@ -582,32 +624,111 @@
 </div>
 
 <script>
+// ─── SUPABASE ────────────────────────────────────────────────────────────────
+const SUPABASE_URL = 'https://hqmyycqfbbslaiwcubtg.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_abV9okO-4XNvsHEU14zc4Q_oygj9Yzc';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+
 // ─── STATE ───────────────────────────────────────────────────────────────────
 let state = {
   items: [],
   recipes: [],
   grocery: [],
   profiles: { 1: { name: 'Person 1', diet: 'vegetarisch' }, 2: { name: 'Person 2', diet: 'vegetarisch' } },
-  apiKey: '',
   currentStore: 'pantry',
   currentRecipeId: null,
   selectedProfiles: [1, 2]
 };
 
-function loadState() {
-  try {
-    const s = localStorage.getItem('hc_state');
-    if (s) state = { ...state, ...JSON.parse(s) };
-  } catch(e) {}
+function mapItemFromDb(row) {
+  return { id: row.id, name: row.name, qtyType: row.qty_type, qty: row.qty, unit: row.unit, store: row.store, mhd: row.mhd, category: row.category };
+}
+function mapRecipeFromDb(row) {
+  return { id: row.id, name: row.name, time: row.time, portions: row.portions, ingredients: row.ingredients || [], steps: row.steps || [], tags: row.tags || [], aiGenerated: row.ai_generated };
+}
+function mapGroceryFromDb(row) {
+  return { id: row.id, text: row.text, checked: row.checked };
 }
 
-function saveState() {
-  localStorage.setItem('hc_state', JSON.stringify(state));
+async function loadState() {
+  const [itemsRes, recipesRes, groceryRes, profilesRes] = await Promise.all([
+    sb.from('pantry_items').select('*'),
+    sb.from('recipes').select('*'),
+    sb.from('grocery_items').select('*'),
+    sb.from('profiles').select('*')
+  ]);
+  const firstError = itemsRes.error || recipesRes.error || groceryRes.error || profilesRes.error;
+  if (firstError) {
+    console.error('loadState error:', { itemsRes, recipesRes, groceryRes, profilesRes });
+    alert('Fehler beim Laden der Daten: ' + firstError.message);
+    return;
+  }
+  state.items = itemsRes.data.map(mapItemFromDb);
+  state.recipes = recipesRes.data.map(mapRecipeFromDb);
+  state.grocery = groceryRes.data.map(mapGroceryFromDb);
+  profilesRes.data.forEach(p => { state.profiles[p.person_num] = { name: p.name, diet: p.diet || '' }; });
 }
+
+// ─── REALTIME ────────────────────────────────────────────────────────────────
+function subscribeRealtime() {
+  sb.channel('hc-sync')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'pantry_items' }, async () => {
+      state.items = (await sb.from('pantry_items').select('*')).data.map(mapItemFromDb);
+      renderPantry();
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'recipes' }, async () => {
+      state.recipes = (await sb.from('recipes').select('*')).data.map(mapRecipeFromDb);
+      renderRecipes();
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'grocery_items' }, async () => {
+      state.grocery = (await sb.from('grocery_items').select('*')).data.map(mapGroceryFromDb);
+      renderGrocery();
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, async () => {
+      const { data } = await sb.from('profiles').select('*');
+      data.forEach(p => { state.profiles[p.person_num] = { name: p.name, diet: p.diet || '' }; });
+      renderSettings();
+    })
+    .subscribe();
+}
+
+// ─── AUTH ────────────────────────────────────────────────────────────────────
+async function login() {
+  const email = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const errEl = document.getElementById('authError');
+  errEl.textContent = '';
+  if (!email || !password) { errEl.textContent = 'Bitte E-Mail und Passwort eingeben.'; return; }
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) errEl.textContent = 'Anmeldung fehlgeschlagen: ' + error.message;
+}
+
+async function logout() {
+  await sb.auth.signOut();
+}
+
+async function showApp() {
+  document.getElementById('authScreen').style.display = 'none';
+  document.getElementById('appShell').style.display = '';
+  const { data: { user } } = await sb.auth.getUser();
+  document.getElementById('accountEmailDisplay').textContent = user ? user.email : '–';
+  await loadState();
+  updateHeader();
+  renderPantry();
+  subscribeRealtime();
+}
+
+function showAuthScreen() {
+  document.getElementById('appShell').style.display = 'none';
+  document.getElementById('authScreen').style.display = 'flex';
+  document.getElementById('auth-password').value = '';
+}
+
+sb.auth.onAuthStateChange((event, session) => {
+  if (session) showApp(); else showAuthScreen();
+});
 
 // ─── UTILS ───────────────────────────────────────────────────────────────────
-function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
-
 function daysUntil(dateStr) {
   if (!dateStr) return null;
   const d = new Date(dateStr);
@@ -760,21 +881,22 @@ function openAddItemModal() {
   setTimeout(() => document.getElementById('item-name').focus(), 300);
 }
 
-function saveItem() {
+async function saveItem() {
   const name = document.getElementById('item-name').value.trim();
   if (!name) return;
   const metric = isMetricMode('item');
-  state.items.push({
-    id: uid(),
+  const row = {
     name,
-    qtyType: metric ? 'metric' : 'fill',
+    qty_type: metric ? 'metric' : 'fill',
     qty: metric ? (parseFloat(document.getElementById('item-qty').value) || 1) : getActiveFill('item'),
     unit: metric ? document.getElementById('item-unit').value : '%',
     store: document.getElementById('item-store').value,
-    mhd: document.getElementById('item-mhd').value,
+    mhd: document.getElementById('item-mhd').value || null,
     category: document.getElementById('item-cat').value || 'Sonstiges'
-  });
-  saveState();
+  };
+  const { data, error } = await sb.from('pantry_items').insert(row).select().single();
+  if (error) { alert('Fehler beim Speichern: ' + error.message); return; }
+  state.items.push(mapItemFromDb(data));
   closeModal('modal-addItem');
   renderPantry();
   updateHeader();
@@ -803,30 +925,32 @@ function openEditItemModal(id) {
   openModal('modal-editItem');
 }
 
-function updateItem() {
+async function updateItem() {
   const id = document.getElementById('edit-item-id').value;
   const idx = state.items.findIndex(i => i.id === id);
   if (idx < 0) return;
   const metric = isMetricMode('edit');
-  state.items[idx] = {
-    ...state.items[idx],
+  const row = {
     name: document.getElementById('edit-item-name').value.trim(),
-    qtyType: metric ? 'metric' : 'fill',
+    qty_type: metric ? 'metric' : 'fill',
     qty: metric ? (parseFloat(document.getElementById('edit-item-qty').value) || 0) : getActiveFill('edit'),
     unit: metric ? document.getElementById('edit-item-unit').value : '%',
     store: document.getElementById('edit-item-store').value,
-    mhd: document.getElementById('edit-item-mhd').value,
+    mhd: document.getElementById('edit-item-mhd').value || null,
     category: document.getElementById('edit-item-cat').value || 'Sonstiges'
   };
-  saveState();
+  const { error } = await sb.from('pantry_items').update(row).eq('id', id);
+  if (error) { alert('Fehler beim Speichern: ' + error.message); return; }
+  state.items[idx] = { ...state.items[idx], ...mapItemFromDb({ id, ...row }) };
   closeModal('modal-editItem');
   renderPantry();
 }
 
-function deleteItem() {
+async function deleteItem() {
   const id = document.getElementById('edit-item-id').value;
+  const { error } = await sb.from('pantry_items').delete().eq('id', id);
+  if (error) { alert('Fehler beim Löschen: ' + error.message); return; }
   state.items = state.items.filter(i => i.id !== id);
-  saveState();
   closeModal('modal-editItem');
   renderPantry();
 }
@@ -869,27 +993,29 @@ function openRecipeModal(editId) {
   openModal('modal-recipe');
 }
 
-function saveRecipe() {
+async function saveRecipe() {
   const name = document.getElementById('recipe-name').value.trim();
   if (!name) return;
   const editId = document.getElementById('recipe-edit-id').value;
-  const recipe = {
-    id: editId || uid(),
+  const row = {
     name,
     time: parseInt(document.getElementById('recipe-time').value)||null,
     portions: parseInt(document.getElementById('recipe-portions').value)||2,
     ingredients: document.getElementById('recipe-ingredients').value.split('\n').map(s=>s.trim()).filter(Boolean),
     steps: document.getElementById('recipe-steps').value.split('\n').map(s=>s.trim()).filter(Boolean),
     tags: document.getElementById('recipe-tags').value.split(',').map(s=>s.trim()).filter(Boolean),
-    aiGenerated: false
+    ai_generated: false
   };
   if (editId) {
+    const { error } = await sb.from('recipes').update(row).eq('id', editId);
+    if (error) { alert('Fehler beim Speichern: ' + error.message); return; }
     const idx = state.recipes.findIndex(r => r.id === editId);
-    if (idx >= 0) state.recipes[idx] = recipe;
+    if (idx >= 0) state.recipes[idx] = mapRecipeFromDb({ id: editId, ...row });
   } else {
-    state.recipes.push(recipe);
+    const { data, error } = await sb.from('recipes').insert(row).select().single();
+    if (error) { alert('Fehler beim Speichern: ' + error.message); return; }
+    state.recipes.push(mapRecipeFromDb(data));
   }
-  saveState();
   closeModal('modal-recipe');
   closeModal('modal-recipeDetail');
   renderRecipes();
@@ -923,13 +1049,13 @@ function editRecipeFromDetail() {
   openRecipeModal(state.currentRecipeId);
 }
 
-function addRecipeToGrocery() {
+async function addRecipeToGrocery() {
   const r = state.recipes.find(r => r.id === state.currentRecipeId);
-  if (!r) return;
-  (r.ingredients||[]).forEach(ing => {
-    state.grocery.push({ id: uid(), text: ing, checked: false });
-  });
-  saveState();
+  if (!r || !(r.ingredients||[]).length) return;
+  const rows = r.ingredients.map(ing => ({ text: ing, checked: false }));
+  const { data, error } = await sb.from('grocery_items').insert(rows).select();
+  if (error) { alert('Fehler beim Hinzufügen: ' + error.message); return; }
+  state.grocery.push(...data.map(mapGroceryFromDb));
   closeModal('modal-recipeDetail');
   switchTab('grocery', document.getElementById('tab-grocery'));
 }
@@ -1000,32 +1126,40 @@ function renderGrocery() {
   `).join('');
 }
 
-function addGroceryItem() {
+async function addGroceryItem() {
   const input = document.getElementById('groceryInput');
   const text = input.value.trim();
   if (!text) return;
-  state.grocery.push({ id: uid(), text, checked: false });
+  const { data, error } = await sb.from('grocery_items').insert({ text, checked: false }).select().single();
+  if (error) { alert('Fehler beim Hinzufügen: ' + error.message); return; }
+  state.grocery.push(mapGroceryFromDb(data));
   input.value = '';
-  saveState();
   renderGrocery();
 }
 
-function toggleGrocery(id) {
+async function toggleGrocery(id) {
   const g = state.grocery.find(g=>g.id===id);
-  if (g) g.checked = !g.checked;
-  saveState();
+  if (!g) return;
+  const checked = !g.checked;
+  const { error } = await sb.from('grocery_items').update({ checked }).eq('id', id);
+  if (error) { alert('Fehler beim Speichern: ' + error.message); return; }
+  g.checked = checked;
   renderGrocery();
 }
 
-function removeGrocery(id) {
+async function removeGrocery(id) {
+  const { error } = await sb.from('grocery_items').delete().eq('id', id);
+  if (error) { alert('Fehler beim Löschen: ' + error.message); return; }
   state.grocery = state.grocery.filter(g=>g.id!==id);
-  saveState();
   renderGrocery();
 }
 
-function clearChecked() {
+async function clearChecked() {
+  const checkedIds = state.grocery.filter(g=>g.checked).map(g=>g.id);
+  if (!checkedIds.length) return;
+  const { error } = await sb.from('grocery_items').delete().in('id', checkedIds);
+  if (error) { alert('Fehler beim Löschen: ' + error.message); return; }
   state.grocery = state.grocery.filter(g=>!g.checked);
-  saveState();
   renderGrocery();
 }
 
@@ -1061,13 +1195,15 @@ function openProfileModal(n) {
   openModal('modal-profile');
 }
 
-function saveProfile() {
+async function saveProfile() {
   const n = parseInt(document.getElementById('profilePersonNum').value);
-  state.profiles[n] = {
+  const profile = {
     name: document.getElementById('profileName').value.trim() || 'Person ' + n,
     diet: document.getElementById('profileDiet').value.trim()
   };
-  saveState();
+  const { error } = await sb.from('profiles').upsert({ person_num: n, ...profile });
+  if (error) { alert('Fehler beim Speichern: ' + error.message); return; }
+  state.profiles[n] = profile;
   closeModal('modal-profile');
   renderSettings();
 }
@@ -1088,19 +1224,27 @@ function importData(e) {
   const file = e.target.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = ev => {
+  reader.onload = async ev => {
     try {
       const data = JSON.parse(ev.target.result);
-      if (data.items) state.items = data.items;
-      if (data.recipes) state.recipes = data.recipes;
-      if (data.grocery) state.grocery = data.grocery;
-      if (data.profiles) state.profiles = data.profiles;
-      saveState();
+      const inserts = [];
+      if (data.items?.length) inserts.push(sb.from('pantry_items').insert(data.items.map(i => ({
+        name: i.name, qty_type: i.qtyType, qty: i.qty, unit: i.unit, store: i.store, mhd: i.mhd || null, category: i.category
+      }))));
+      if (data.recipes?.length) inserts.push(sb.from('recipes').insert(data.recipes.map(r => ({
+        name: r.name, time: r.time, portions: r.portions, ingredients: r.ingredients||[], steps: r.steps||[], tags: r.tags||[], ai_generated: !!r.aiGenerated
+      }))));
+      if (data.grocery?.length) inserts.push(sb.from('grocery_items').insert(data.grocery.map(g => ({ text: g.text, checked: !!g.checked }))));
+      if (data.profiles) inserts.push(sb.from('profiles').upsert(Object.entries(data.profiles).map(([n, p]) => ({ person_num: parseInt(n), name: p.name, diet: p.diet||'' }))));
+      const results = await Promise.all(inserts);
+      const failed = results.find(r => r.error);
+      if (failed) throw new Error(failed.error.message);
+      await loadState();
       updateHeader();
       renderSettings();
       alert('Daten erfolgreich importiert.');
     } catch(err) {
-      alert('Fehler beim Importieren: Ungültige JSON-Datei.');
+      alert('Fehler beim Importieren: ' + err.message);
     }
   };
   reader.readAsText(file);
@@ -1108,9 +1252,7 @@ function importData(e) {
 }
 
 // ─── INIT ────────────────────────────────────────────────────────────────────
-loadState();
-updateHeader();
-renderPantry();
+// Auth-Status entscheidet, ob Login- oder App-Screen gezeigt wird (siehe sb.auth.onAuthStateChange).
 
 // Service Worker wird extern registriert wenn vorhanden (nicht inline nötig)
 
