@@ -250,6 +250,10 @@
         <svg viewBox="0 0 24 24"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
         Vorschläge
       </button>
+      <button class="btn btn-sm" onclick="openAiSuggestModal()" style="flex:1;justify-content:center">
+        <svg viewBox="0 0 24 24"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+        KI-Ideen
+      </button>
       <button class="btn btn-sm" onclick="openRecipeModal()" style="flex:1;justify-content:center">
         <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Eigenes Rezept
@@ -286,8 +290,8 @@
     <div class="settings-card">
       <div class="settings-row">
         <div class="settings-row-label">
-          <strong>Claude API (geplant)</strong>
-          <span>Wird in einem späteren Schritt eingerichtet. Vorschläge funktionieren aktuell regelbasiert.</span>
+          <strong>Claude API (aktiv)</strong>
+          <span>KI-Rezeptvorschläge sind über den Button „KI-Ideen“ bei den Rezepten verfügbar.</span>
         </div>
       </div>
     </div>
@@ -543,6 +547,19 @@
     <div id="suggestResult"></div>
     <div class="modal-footer">
       <button class="btn" onclick="closeModal('modal-suggest')">Schließen</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: KI-Rezeptvorschläge (Claude) -->
+<div class="modal-backdrop" id="modal-aiSuggest">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2>KI-Ideen</h2>
+    <p style="font-size:14px;color:var(--text2);margin-bottom:16px">Vorschläge von Claude, basierend auf Ihrem Vorrat und Ihren Ernährungsprofilen.</p>
+    <div id="aiSuggestResult"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-aiSuggest')">Schließen</button>
     </div>
   </div>
 </div>
@@ -1108,6 +1125,112 @@ function openSuggestModal() {
   }
 
   openModal('modal-suggest');
+}
+
+// ─── KI-VORSCHLÄGE (Claude API via Supabase Edge Function) ───────────────────
+const aiSuggestionCache = {};
+async function openAiSuggestModal() {
+  const result = document.getElementById('aiSuggestResult');
+  result.innerHTML = `<div class="empty"><p>Claude denkt nach …</p></div>`;
+  openModal('modal-aiSuggest');
+  try {
+    const data = await fetchAiSuggestions();
+    renderAiSuggestions(data);
+  } catch (err) {
+    result.innerHTML = `<div class="empty"><p>Fehler bei den KI-Vorschlägen: ${err.message}</p></div>`;
+  }
+}
+
+async function fetchAiSuggestions() {
+  const { data: sessionData } = await sb.auth.getSession();
+  const token = sessionData?.session?.access_token;
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-suggest`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+      'apikey': SUPABASE_PUBLISHABLE_KEY,
+    },
+    body: JSON.stringify({ items: state.items, recipes: state.recipes, profiles: state.profiles }),
+  });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body.error || 'Unbekannter Fehler');
+  return body;
+}
+
+function renderAiSuggestions(data) {
+  const buckets = [
+    { key: 'noShopping', label: 'Ohne Einkauf' },
+    { key: 'smallShopping', label: 'Mit kleinem Einkauf' },
+    { key: 'bigShopping', label: 'Mit großem Einkauf' },
+  ];
+  const result = document.getElementById('aiSuggestResult');
+  result.innerHTML = buckets.map(({ key, label }) => {
+    const suggestions = data[key] || [];
+    if (!suggestions.length) return '';
+    return `
+      <div class="section-header" style="margin-top:16px"><span class="section-label">${label}</span></div>
+      ${suggestions.map(s => aiSuggestCard(s)).join('')}
+    `;
+  }).join('') || `<div class="empty"><p>Keine Vorschläge erhalten.</p></div>`;
+}
+
+function aiSuggestCard(s) {
+  const cardId = 'ai-' + Math.random().toString(36).slice(2);
+  aiSuggestionCache[cardId] = s;
+  const missing = s.missingIngredients?.length
+    ? `<div class="recipe-meta" style="margin-top:6px">Fehlt: ${s.missingIngredients.join(', ')}</div>`
+    : '';
+  const openExisting = s.source === 'existing' && s.recipeId ? `closeModal('modal-aiSuggest');openRecipeDetail('${s.recipeId}')` : '';
+  return `
+    <div class="recipe-card" style="margin-bottom:10px" ${openExisting ? `onclick="${openExisting}"` : ''}>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <div class="recipe-title" style="flex:1">${s.name}</div>
+      </div>
+      <div class="recipe-meta">${s.time ? s.time + ' Min. · ' : ''}${s.portions ? s.portions + ' Portionen' : ''}</div>
+      ${missing}
+      <div class="recipe-tags" style="margin-top:6px">
+        ${s.source === 'new' ? '<span class="tag tag-ai">KI</span>' : '<span class="tag">Eigenes Rezept</span>'}
+        ${(s.tags||[]).map(t=>`<span class="tag">${t}</span>`).join('')}
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px" onclick="event.stopPropagation()">
+        ${s.source === 'new' ? `<button class="btn btn-sm" onclick="saveAiRecipe('${cardId}', this)">Speichern</button>` : ''}
+        ${s.missingIngredients?.length ? `<button class="btn btn-sm" onclick="addMissingToGrocery('${cardId}', this)">Zur Einkaufsliste</button>` : ''}
+      </div>
+    </div>`;
+}
+
+async function saveAiRecipe(cardId, btn) {
+  const s = aiSuggestionCache[cardId];
+  if (!s) return;
+  const row = {
+    name: s.name,
+    time: s.time || null,
+    portions: s.portions || 2,
+    ingredients: s.ingredients || [],
+    steps: s.steps || [],
+    tags: s.tags || [],
+    ai_generated: true,
+  };
+  const { data, error } = await sb.from('recipes').insert(row).select().single();
+  if (error) { alert('Fehler beim Speichern: ' + error.message); return; }
+  state.recipes.push(mapRecipeFromDb(data));
+  renderRecipes();
+  btn.textContent = 'Gespeichert ✓';
+  btn.disabled = true;
+}
+
+async function addMissingToGrocery(cardId, btn) {
+  const s = aiSuggestionCache[cardId];
+  if (!s?.missingIngredients?.length) return;
+  const { data, error } = await sb.from('grocery_items')
+    .insert(s.missingIngredients.map(text => ({ text, checked: false })))
+    .select();
+  if (error) { alert('Fehler beim Hinzufügen: ' + error.message); return; }
+  state.grocery.push(...data.map(mapGroceryFromDb));
+  renderGrocery();
+  btn.textContent = 'Hinzugefügt ✓';
+  btn.disabled = true;
 }
 
 // ─── GROCERY ─────────────────────────────────────────────────────────────────
