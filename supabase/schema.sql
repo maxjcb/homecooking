@@ -19,10 +19,13 @@ create table recipes (
   name text not null,
   time int,
   portions int,
-  ingredients text[] not null default '{}',
+  -- jsonb array of {qty: number|null, unit: string|null, name: string}
+  ingredients jsonb not null default '[]',
   steps text[] not null default '{}',
   tags text[] not null default '{}',
-  ai_generated boolean not null default false
+  ai_generated boolean not null default false,
+  -- {calories, protein, carbs, fat} for the WHOLE recipe (as stored, not per portion)
+  nutrition jsonb
 );
 
 create table grocery_items (
@@ -61,3 +64,22 @@ alter publication supabase_realtime add table pantry_items, recipes, grocery_ite
 insert into profiles (person_num, name, diet) values
   (1, 'Person 1', 'vegetarisch'),
   (2, 'Person 2', 'vegetarisch');
+
+-- Migration: strukturierte Zutaten + Nährwerte. NUR auf einem bestehenden Projekt
+-- ausführen, bei dem `recipes` schon existiert (NICHT zusammen mit dem `create table`
+-- oben in einem frischen Setup laufen lassen — dort ist die Spalte bereits jsonb).
+-- Bestehende Freitext-Zutaten werden verlustfrei in {qty: null, unit: null, name: "<Text>"}
+-- überführt; nichts geht verloren, ist aber bis zum nächsten Bearbeiten unstrukturiert.
+create or replace function _migrate_ingredients_to_jsonb(arr text[]) returns jsonb as $$
+  select coalesce(
+    jsonb_agg(jsonb_build_object('qty', null, 'unit', null, 'name', x)),
+    '[]'::jsonb
+  )
+  from unnest(arr) as x;
+$$ language sql immutable;
+
+alter table recipes alter column ingredients drop default;
+alter table recipes alter column ingredients type jsonb using _migrate_ingredients_to_jsonb(ingredients);
+alter table recipes alter column ingredients set default '[]'::jsonb;
+drop function _migrate_ingredients_to_jsonb(text[]);
+alter table recipes add column if not exists nutrition jsonb;

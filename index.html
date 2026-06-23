@@ -159,6 +159,17 @@
   .step-row:last-child { border-bottom: none; }
   .step-num { width: 24px; height: 24px; background: var(--accent); color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; flex-shrink: 0; margin-top: 1px; }
 
+  .ingredient-form-row { display: grid; grid-template-columns: 70px 70px 1fr 32px; gap: 8px; margin-bottom: 8px; align-items: center; }
+  .ingredient-form-row input { padding: 9px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; font-family: var(--font); color: var(--text); background: var(--surface); outline: none; }
+  .ingredient-form-row input:focus { border-color: var(--accent); }
+  .ingredient-remove-btn { width: 32px; height: 32px; border: none; background: none; color: var(--text3); font-size: 18px; cursor: pointer; }
+  .portion-stepper { display: flex; align-items: center; gap: 10px; }
+  .portion-stepper button { width: 26px; height: 26px; border: 1px solid var(--border); border-radius: 50%; background: var(--surface); color: var(--text); font-size: 16px; line-height: 1; cursor: pointer; }
+  .nutrition-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center; }
+  .nutrition-grid div { background: var(--surface2); border-radius: var(--radius-sm); padding: 10px 6px; }
+  .nutrition-grid .nutrition-value { font-size: 15px; font-weight: 600; display: block; }
+  .nutrition-grid .nutrition-label { font-size: 11px; color: var(--text2); }
+
   /* Notification dot */
   .notif-dot { width: 8px; height: 8px; background: var(--warn); border-radius: 50%; display: inline-block; margin-left: 4px; vertical-align: middle; }
 
@@ -442,6 +453,7 @@
         <option value="Gewürz">Gewürz</option>
         <option value="Hülsenfrüchte">Hülsenfrüchte</option>
         <option value="Öl">Öl</option>
+        <option value="Protein">Protein</option>
         <option value="Sauce">Sauce</option>
         <option value="Sättigungsbeilagen">Sättigungsbeilagen</option>
         <option value="Sonstiges">Sonstiges</option>
@@ -526,6 +538,7 @@
         <option value="Gewürz">Gewürz</option>
         <option value="Hülsenfrüchte">Hülsenfrüchte</option>
         <option value="Öl">Öl</option>
+        <option value="Protein">Protein</option>
         <option value="Sauce">Sauce</option>
         <option value="Sättigungsbeilagen">Sättigungsbeilagen</option>
         <option value="Sonstiges">Sonstiges</option>
@@ -557,6 +570,11 @@
     <div class="modal-handle"></div>
     <h2>KI-Ideen</h2>
     <p style="font-size:14px;color:var(--text2);margin-bottom:16px">Vorschläge von Claude, basierend auf Ihrem Vorrat und Ihren Ernährungsprofilen.</p>
+    <div class="form-group">
+      <label class="form-label">Präferenz (optional)</label>
+      <input class="form-input" id="aiPreferenceInput" placeholder="z.B. griechische Küche oder keine Präferenz">
+    </div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center;margin-bottom:12px" onclick="generateAiSuggestions()">Vorschläge generieren</button>
     <div id="aiSuggestResult"></div>
     <div class="modal-footer">
       <button class="btn" onclick="closeModal('modal-aiSuggest')">Schließen</button>
@@ -585,8 +603,9 @@
       </div>
     </div>
     <div class="form-group">
-      <label class="form-label">Zutaten (eine pro Zeile)</label>
-      <textarea class="form-input" id="recipe-ingredients" placeholder="200g Tomaten&#10;1 Zwiebel&#10;2 EL Olivenöl"></textarea>
+      <label class="form-label">Zutaten</label>
+      <div id="recipe-ingredients-list"></div>
+      <button class="btn btn-sm" type="button" onclick="addIngredientRow()">+ Zutat hinzufügen</button>
     </div>
     <div class="form-group">
       <label class="form-label">Zubereitung (Schritte, eine pro Zeile)</label>
@@ -661,7 +680,7 @@ function mapItemFromDb(row) {
   return { id: row.id, name: row.name, qtyType: row.qty_type, qty: row.qty, unit: row.unit, store: row.store, mhd: row.mhd, category: row.category };
 }
 function mapRecipeFromDb(row) {
-  return { id: row.id, name: row.name, time: row.time, portions: row.portions, ingredients: row.ingredients || [], steps: row.steps || [], tags: row.tags || [], aiGenerated: row.ai_generated };
+  return { id: row.id, name: row.name, time: row.time, portions: row.portions, ingredients: row.ingredients || [], steps: row.steps || [], tags: row.tags || [], aiGenerated: row.ai_generated, nutrition: row.nutrition || null };
 }
 function mapGroceryFromDb(row) {
   return { id: row.id, text: row.text, checked: row.checked };
@@ -1001,24 +1020,85 @@ function openRecipeModal(editId) {
     document.getElementById('recipe-name').value = r.name;
     document.getElementById('recipe-time').value = r.time||'';
     document.getElementById('recipe-portions').value = r.portions||'';
-    document.getElementById('recipe-ingredients').value = (r.ingredients||[]).join('\n');
+    document.getElementById('recipe-ingredients-list').innerHTML = '';
+    (r.ingredients||[]).forEach(ing => addIngredientRow(ing));
+    if (!(r.ingredients||[]).length) addIngredientRow();
     document.getElementById('recipe-steps').value = (r.steps||[]).join('\n');
     document.getElementById('recipe-tags').value = (r.tags||[]).join(', ');
   } else {
-    ['recipe-name','recipe-time','recipe-portions','recipe-ingredients','recipe-steps','recipe-tags'].forEach(id => document.getElementById(id).value = '');
+    ['recipe-name','recipe-time','recipe-portions','recipe-steps','recipe-tags'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('recipe-ingredients-list').innerHTML = '';
+    addIngredientRow();
   }
   openModal('modal-recipe');
+}
+
+function addIngredientRow(ing) {
+  const row = document.createElement('div');
+  row.className = 'ingredient-form-row';
+  row.innerHTML = `
+    <input type="number" step="0.1" placeholder="Menge" value="${ing?.qty ?? ''}">
+    <input type="text" placeholder="Einheit" value="${ing?.unit ?? ''}">
+    <input type="text" placeholder="Zutat" value="${ing?.name ?? ''}">
+    <button class="ingredient-remove-btn" type="button" onclick="this.closest('.ingredient-form-row').remove()">✕</button>
+  `;
+  document.getElementById('recipe-ingredients-list').appendChild(row);
+}
+
+function collectIngredientRows() {
+  return [...document.querySelectorAll('#recipe-ingredients-list .ingredient-form-row')].map(row => {
+    const [qtyInput, unitInput, nameInput] = row.querySelectorAll('input');
+    return {
+      qty: qtyInput.value.trim() ? parseFloat(qtyInput.value) : null,
+      unit: unitInput.value.trim() || null,
+      name: nameInput.value.trim(),
+    };
+  }).filter(ing => ing.name);
+}
+
+function formatIngredient(ing) {
+  return [ing.qty, ing.unit, ing.name].filter(v => v !== null && v !== undefined && v !== '').join(' ');
+}
+
+async function estimateNutrition(ingredients, portions) {
+  try {
+    const { data: sessionData } = await sb.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/estimate-nutrition`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        'apikey': SUPABASE_PUBLISHABLE_KEY,
+      },
+      body: JSON.stringify({ ingredients, portions }),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
 }
 
 async function saveRecipe() {
   const name = document.getElementById('recipe-name').value.trim();
   if (!name) return;
   const editId = document.getElementById('recipe-edit-id').value;
+  const portions = parseInt(document.getElementById('recipe-portions').value)||2;
+  const ingredients = collectIngredientRows();
+  const saveBtn = document.querySelector('#modal-recipe .btn-primary');
+  const saveBtnLabel = saveBtn.textContent;
+  saveBtn.textContent = 'Speichert …';
+  saveBtn.disabled = true;
+  const nutrition = ingredients.length ? await estimateNutrition(ingredients, portions) : null;
+  saveBtn.textContent = saveBtnLabel;
+  saveBtn.disabled = false;
   const row = {
     name,
     time: parseInt(document.getElementById('recipe-time').value)||null,
-    portions: parseInt(document.getElementById('recipe-portions').value)||2,
-    ingredients: document.getElementById('recipe-ingredients').value.split('\n').map(s=>s.trim()).filter(Boolean),
+    portions,
+    ingredients,
+    nutrition,
     steps: document.getElementById('recipe-steps').value.split('\n').map(s=>s.trim()).filter(Boolean),
     tags: document.getElementById('recipe-tags').value.split(',').map(s=>s.trim()).filter(Boolean),
     ai_generated: false
@@ -1038,27 +1118,66 @@ async function saveRecipe() {
   renderRecipes();
 }
 
+let detailPortions = null;
+
 function openRecipeDetail(id) {
   const r = state.recipes.find(r => r.id === id);
   if (!r) return;
   state.currentRecipeId = id;
+  detailPortions = r.portions || 2;
+  renderRecipeDetail();
+  openModal('modal-recipeDetail');
+}
+
+function changeDetailPortions(delta) {
+  detailPortions = Math.max(1, detailPortions + delta);
+  renderRecipeDetail();
+}
+
+function renderRecipeDetail() {
+  const r = state.recipes.find(r => r.id === state.currentRecipeId);
+  if (!r) return;
+  const factor = detailPortions / (r.portions || 1);
+  const scaledIngredients = (r.ingredients||[]).map(ing => ing.qty != null
+    ? { ...ing, qty: Math.round(ing.qty * factor * 10) / 10 }
+    : ing);
+
+  const nutritionHtml = r.nutrition
+    ? `<div class="nutrition-grid">
+        <div><span class="nutrition-value">${Math.round(r.nutrition.calories / detailPortions)}</span><span class="nutrition-label">kcal</span></div>
+        <div><span class="nutrition-value">${Math.round(r.nutrition.protein / detailPortions)}g</span><span class="nutrition-label">Eiweiß</span></div>
+        <div><span class="nutrition-value">${Math.round(r.nutrition.carbs / detailPortions)}g</span><span class="nutrition-label">Kohlenh.</span></div>
+        <div><span class="nutrition-value">${Math.round(r.nutrition.fat / detailPortions)}g</span><span class="nutrition-label">Fett</span></div>
+      </div>`
+    : `<p style="font-size:13px;color:var(--text2)">Nährwerte unbekannt – wird beim nächsten Speichern des Rezepts ergänzt.</p>`;
+
   document.getElementById('recipeDetailContent').innerHTML = `
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:4px">
       <h2 style="font-size:20px;font-weight:600">${r.name}</h2>
       ${r.aiGenerated ? '<span class="tag tag-ai" style="flex-shrink:0;margin-top:3px">KI</span>' : ''}
     </div>
-    <div style="font-size:13px;color:var(--text2);margin-bottom:4px">${r.time ? r.time + ' Min. · ' : ''}${r.portions ? r.portions + ' Portionen' : ''}</div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:4px;display:flex;align-items:center;gap:10px">
+      ${r.time ? r.time + ' Min. · ' : ''}
+      <span class="portion-stepper">
+        <button onclick="changeDetailPortions(-1)">−</button>
+        ${detailPortions} Portionen
+        <button onclick="changeDetailPortions(1)">+</button>
+      </span>
+    </div>
     <div class="recipe-tags" style="margin-bottom:0">${(r.tags||[]).map(t=>`<span class="tag">${t}</span>`).join('')}</div>
     <div class="recipe-detail-section">
       <h3>Zutaten</h3>
-      ${(r.ingredients||[]).map(i=>`<div class="ingredient-row"><span>${i}</span></div>`).join('')}
+      ${scaledIngredients.map(i=>`<div class="ingredient-row"><span>${formatIngredient(i)}</span></div>`).join('')}
     </div>
     <div class="recipe-detail-section">
       <h3>Zubereitung</h3>
       ${(r.steps||[]).map((s,i)=>`<div class="step-row"><div class="step-num">${i+1}</div><div>${s}</div></div>`).join('')}
     </div>
+    <div class="recipe-detail-section">
+      <h3>Nährwerte (pro Portion, geschätzt)</h3>
+      ${nutritionHtml}
+    </div>
   `;
-  openModal('modal-recipeDetail');
 }
 
 function editRecipeFromDetail() {
@@ -1069,7 +1188,7 @@ function editRecipeFromDetail() {
 async function addRecipeToGrocery() {
   const r = state.recipes.find(r => r.id === state.currentRecipeId);
   if (!r || !(r.ingredients||[]).length) return;
-  const rows = r.ingredients.map(ing => ({ text: ing, checked: false }));
+  const rows = r.ingredients.map(ing => ({ text: formatIngredient(ing), checked: false }));
   const { data, error } = await sb.from('grocery_items').insert(rows).select();
   if (error) { alert('Fehler beim Hinzufügen: ' + error.message); return; }
   state.grocery.push(...data.map(mapGroceryFromDb));
@@ -1092,8 +1211,8 @@ function openSuggestModal() {
     const ings = (r.ingredients || []);
     if (!ings.length) return { r, score: 0, matched: 0, total: 0 };
     const matched = ings.filter(ing => {
-      const ingLower = ing.toLowerCase();
-      return pantryNames.some(p => ingLower.includes(p) || p.includes(ingLower.split(' ')[0]));
+      const nameLower = (ing.name || '').toLowerCase();
+      return pantryNames.some(p => nameLower.includes(p) || p.includes(nameLower.split(' ')[0]));
     }).length;
     return { r, score: matched / ings.length, matched, total: ings.length };
   }).sort((a,b) => b.score - a.score);
@@ -1129,19 +1248,64 @@ function openSuggestModal() {
 
 // ─── KI-VORSCHLÄGE (Claude API via Supabase Edge Function) ───────────────────
 const aiSuggestionCache = {};
-async function openAiSuggestModal() {
+const AI_BUCKETS = [
+  { key: 'noShopping', label: 'Ohne Einkauf' },
+  { key: 'shopping', label: 'Mit Einkauf' },
+];
+let aiSuggestState = { noShopping: [], shopping: [] };
+let aiShownNames = [];
+let aiLastPreference = '';
+
+function openAiSuggestModal() {
+  document.getElementById('aiPreferenceInput').value = '';
+  document.getElementById('aiSuggestResult').innerHTML = '';
+  aiSuggestState = { noShopping: [], shopping: [] };
+  aiShownNames = [];
+  openModal('modal-aiSuggest');
+}
+
+async function generateAiSuggestions() {
+  aiLastPreference = document.getElementById('aiPreferenceInput').value.trim() || 'keine Präferenz';
+  aiSuggestState = { noShopping: [], shopping: [] };
+  aiShownNames = [];
   const result = document.getElementById('aiSuggestResult');
   result.innerHTML = `<div class="empty"><p>Claude denkt nach …</p></div>`;
-  openModal('modal-aiSuggest');
   try {
-    const data = await fetchAiSuggestions();
-    renderAiSuggestions(data);
+    const data = await fetchAiSuggestions({ preference: aiLastPreference });
+    aiSuggestState.noShopping = data.noShopping || [];
+    aiSuggestState.shopping = data.shopping || [];
+    collectShownNames();
+    renderAiSuggestions();
   } catch (err) {
     result.innerHTML = `<div class="empty"><p>Fehler bei den KI-Vorschlägen: ${err.message}</p></div>`;
   }
 }
 
-async function fetchAiSuggestions() {
+async function loadMoreAiSuggestions(bucketKey, btn) {
+  btn.disabled = true;
+  btn.textContent = 'Lädt …';
+  try {
+    const data = await fetchAiSuggestions({
+      preference: aiLastPreference,
+      excludeNames: aiShownNames,
+      onlyBucket: bucketKey,
+      count: 2,
+    });
+    aiSuggestState[bucketKey].push(...(data[bucketKey] || []));
+    collectShownNames();
+    renderAiSuggestions();
+  } catch (err) {
+    alert('Fehler beim Nachladen: ' + err.message);
+    btn.disabled = false;
+    btn.textContent = '+ 2 weitere Ideen';
+  }
+}
+
+function collectShownNames() {
+  aiShownNames = [...aiSuggestState.noShopping, ...aiSuggestState.shopping].map(s => s.name);
+}
+
+async function fetchAiSuggestions(extra) {
   const { data: sessionData } = await sb.auth.getSession();
   const token = sessionData?.session?.access_token;
   const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-suggest`, {
@@ -1151,28 +1315,25 @@ async function fetchAiSuggestions() {
       'Authorization': `Bearer ${token}`,
       'apikey': SUPABASE_PUBLISHABLE_KEY,
     },
-    body: JSON.stringify({ items: state.items, recipes: state.recipes, profiles: state.profiles }),
+    body: JSON.stringify({ items: state.items, recipes: state.recipes, profiles: state.profiles, ...extra }),
   });
   const body = await res.json();
   if (!res.ok) throw new Error(body.error || 'Unbekannter Fehler');
   return body;
 }
 
-function renderAiSuggestions(data) {
-  const buckets = [
-    { key: 'noShopping', label: 'Ohne Einkauf' },
-    { key: 'smallShopping', label: 'Mit kleinem Einkauf' },
-    { key: 'bigShopping', label: 'Mit großem Einkauf' },
-  ];
+function renderAiSuggestions() {
   const result = document.getElementById('aiSuggestResult');
-  result.innerHTML = buckets.map(({ key, label }) => {
-    const suggestions = data[key] || [];
+  const hasAny = AI_BUCKETS.some(({ key }) => aiSuggestState[key].length);
+  result.innerHTML = AI_BUCKETS.map(({ key, label }) => {
+    const suggestions = aiSuggestState[key];
     if (!suggestions.length) return '';
     return `
       <div class="section-header" style="margin-top:16px"><span class="section-label">${label}</span></div>
       ${suggestions.map(s => aiSuggestCard(s)).join('')}
+      <button class="btn btn-sm" style="width:100%;justify-content:center" onclick="loadMoreAiSuggestions('${key}', this)">+ 2 weitere Ideen</button>
     `;
-  }).join('') || `<div class="empty"><p>Keine Vorschläge erhalten.</p></div>`;
+  }).join('') || (hasAny ? '' : `<div class="empty"><p>Keine Vorschläge erhalten.</p></div>`);
 }
 
 function aiSuggestCard(s) {
@@ -1208,6 +1369,7 @@ async function saveAiRecipe(cardId, btn) {
     time: s.time || null,
     portions: s.portions || 2,
     ingredients: s.ingredients || [],
+    nutrition: s.nutrition || null,
     steps: s.steps || [],
     tags: s.tags || [],
     ai_generated: true,

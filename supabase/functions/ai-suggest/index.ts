@@ -1,6 +1,6 @@
 // Homecooking: KI-Rezeptvorschläge via Claude (Anthropic Messages API)
-// Manuell deployen: `supabase functions deploy ai-suggest`
-// Secret setzen:    `supabase secrets set ANTHROPIC_API_KEY=sk-ant-...`
+// Manuell deployen: `supabase functions deploy ai-suggest --project-ref hqmyycqfbbslaiwcubtg --use-api`
+// Secret setzen:    `supabase secrets set ANTHROPIC_API_KEY=sk-ant-... --project-ref hqmyycqfbbslaiwcubtg`
 // Nicht Teil der laufenden App (wie supabase/schema.sql) — kein Auto-Deploy.
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
@@ -14,6 +14,27 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
+const INGREDIENT_SCHEMA = {
+  type: 'object',
+  properties: {
+    qty: { type: 'number', description: 'Menge als Zahl, z.B. 200 oder 1. Null/weglassen, wenn keine sinnvolle Zahl existiert (z.B. "eine Prise").' },
+    unit: { type: 'string', description: 'Einheit, z.B. "g", "EL", "Stk". Null/weglassen, wenn nicht zutreffend.' },
+    name: { type: 'string', description: 'Name der Zutat ohne Menge/Einheit, z.B. "Linsen".' },
+  },
+  required: ['name'],
+};
+
+const NUTRITION_SCHEMA = {
+  type: 'object',
+  properties: {
+    calories: { type: 'number' },
+    protein: { type: 'number' },
+    carbs: { type: 'number' },
+    fat: { type: 'number' },
+  },
+  required: ['calories', 'protein', 'carbs', 'fat'],
+};
+
 const SUGGESTION_SCHEMA = {
   type: 'object',
   properties: {
@@ -22,25 +43,24 @@ const SUGGESTION_SCHEMA = {
     name: { type: 'string' },
     time: { type: 'number' },
     portions: { type: 'number' },
-    ingredients: { type: 'array', items: { type: 'string' } },
+    ingredients: { type: 'array', items: INGREDIENT_SCHEMA, description: 'Nur bei source=new befüllen. Jede Zutat MUSS eine Mengenangabe (qty+unit) enthalten, sofern sinnvoll möglich.' },
     steps: { type: 'array', items: { type: 'string' } },
     tags: { type: 'array', items: { type: 'string' } },
     missingIngredients: { type: 'array', items: { type: 'string' } },
+    nutrition: { ...NUTRITION_SCHEMA, description: 'Nur bei source=new befüllen: grobe Nährwert-Schätzung für das GESAMTE Rezept (alle Portionen zusammen).' },
   },
   required: ['source', 'name', 'missingIngredients'],
 };
 
 const SUGGESTIONS_TOOL = {
   name: 'return_suggestions',
-  description: 'Liefert Rezeptvorschläge gruppiert nach benötigtem Einkaufsaufwand.',
+  description: 'Liefert Rezeptvorschläge gruppiert nach Einkaufsbedarf.',
   input_schema: {
     type: 'object',
     properties: {
       noShopping: { type: 'array', items: SUGGESTION_SCHEMA },
-      smallShopping: { type: 'array', items: SUGGESTION_SCHEMA },
-      bigShopping: { type: 'array', items: SUGGESTION_SCHEMA },
+      shopping: { type: 'array', items: SUGGESTION_SCHEMA },
     },
-    required: ['noShopping', 'smallShopping', 'bigShopping'],
   },
 };
 
@@ -63,7 +83,15 @@ Deno.serve(async (req) => {
     });
   }
 
-  const { items = [], recipes = [], profiles = {} } = await req.json();
+  const {
+    items = [],
+    recipes = [],
+    profiles = {},
+    preference = '',
+    excludeNames = [],
+    onlyBucket = null,
+    count = null,
+  } = await req.json();
 
   const profileText = Object.values(profiles)
     .map((p) => `${p.name}: ${p.diet || 'keine Angabe'}`)
@@ -71,11 +99,18 @@ Deno.serve(async (req) => {
   const pantryText = items
     .map((i) => `${i.name} (${i.qtyType === 'fill' ? i.qty + '% gefüllt' : (i.qty ?? '') + ' ' + (i.unit ?? '')}, ${i.store})`)
     .join('\n');
+  const formatIngredient = (i) => [i.qty, i.unit, i.name].filter(Boolean).join(' ');
   const recipeText = recipes
-    .map((r) => `- id: ${r.id} | ${r.name} | Zutaten: ${(r.ingredients || []).join(', ')}`)
+    .map((r) => `- id: ${r.id} | ${r.name} | Zutaten: ${(r.ingredients || []).map(formatIngredient).join(', ')}`)
     .join('\n');
+  const preferenceText = preference?.trim() && preference.trim().toLowerCase() !== 'keine präferenz'
+    ? `Küchen-/Geschmackspräferenz: "${preference.trim()}". Berücksichtige dies bei der Auswahl/Erfindung der Gerichte.`
+    : 'Keine besondere Küchen-/Geschmackspräferenz angegeben.';
+  const excludeText = excludeNames.length
+    ? `Bereits vorgeschlagen, NICHT erneut nennen: ${excludeNames.join(', ')}.`
+    : '';
 
-  const userPrompt = `Haushalt (beide vegetarisch, individuelle Ausnahmen): ${profileText}
+  const basePrompt = `Haushalt (beide vegetarisch, individuelle Ausnahmen): ${profileText}
 
 Aktueller Vorrat:
 ${pantryText || '(leer)'}
@@ -83,14 +118,22 @@ ${pantryText || '(leer)'}
 Gespeicherte Rezepte:
 ${recipeText || '(keine)'}
 
-Schlage Gerichte in drei Stufen vor:
+${preferenceText}
+${excludeText}
+
+Bevorzuge proteinreiche vegetarische Gerichte (z.B. mit Hülsenfrüchten, Tofu, Eiern, Quark, Käse, Nüssen als zentralen Zutaten). Gib bei neuen Rezepten (source="new") für jede Zutat qty+unit+name an (z.B. {qty:200, unit:"g", name:"Linsen"}) und eine grobe Nährwert-Schätzung (nutrition) fürs gesamte Rezept.`;
+
+  const userPrompt = onlyBucket
+    ? `${basePrompt}
+
+Liefere ausschließlich im Feld "${onlyBucket}" genau ${count || 2} NEUE Rezeptideen (source="new", mit vollständigen ingredients/steps, Mengenangaben siehe oben). Lass das jeweils andere Feld weg bzw. leer. Antworte ausschließlich über das Tool return_suggestions.`
+    : `${basePrompt}
+
+Schlage Gerichte in zwei Stufen vor:
 1. noShopping: sofort kochbar, nichts fehlt im Vorrat.
-2. smallShopping: nur wenige (1-3) zusätzliche Zutaten nötig.
-3. bigShopping: mehr zusätzliche Zutaten nötig, auch aufwändigere/neue Gerichte erlaubt.
+2. shopping: es fehlen Zutaten (egal ob wenige oder viele).
 
-Bevorzuge dabei proteinreiche vegetarische Gerichte (z.B. mit Hülsenfrüchten, Tofu, Eiern, Quark, Käse, Nüssen als zentralen Zutaten) – wähle in jeder Stufe, wenn möglich, proteinreiche Optionen vor weniger proteinreichen.
-
-Nutze für jede Stufe 2-3 Vorschläge, gerne eine Mischung aus bestehenden Rezepten (source="existing", mit recipeId) und neuen Ideen (source="new", mit vollständigen ingredients/steps). Halte ingredients/steps bei neuen Rezepten knapp (kurze Stichpunkte, keine ausführlichen Erklärungen). Liste bei jedem Vorschlag die fehlenden Zutaten in missingIngredients (leeres Array wenn nichts fehlt). Antworte ausschließlich über das Tool return_suggestions.`;
+Nutze für jede Stufe 2-3 Vorschläge, gerne eine Mischung aus bestehenden Rezepten (source="existing", mit recipeId) und neuen Ideen (source="new"). Halte ingredients/steps bei neuen Rezepten knapp (kurze Stichpunkte, keine ausführlichen Erklärungen). Liste bei jedem Vorschlag die fehlenden Zutaten in missingIngredients (leeres Array wenn nichts fehlt). Antworte ausschließlich über das Tool return_suggestions.`;
 
   const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -125,7 +168,10 @@ Nutze für jede Stufe 2-3 Vorschläge, gerne eine Mischung aus bestehenden Rezep
     });
   }
 
-  return new Response(JSON.stringify(toolUse.input), {
+  return new Response(JSON.stringify({
+    noShopping: toolUse.input.noShopping || [],
+    shopping: toolUse.input.shopping || [],
+  }), {
     headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
   });
 });
