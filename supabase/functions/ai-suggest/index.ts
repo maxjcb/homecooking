@@ -6,7 +6,7 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY')!;
-const MODEL = 'claude-sonnet-4-6';
+const MODEL = 'claude-haiku-4-5-20251001';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -88,7 +88,9 @@ Schlage Gerichte in drei Stufen vor:
 2. smallShopping: nur wenige (1-3) zusätzliche Zutaten nötig.
 3. bigShopping: mehr zusätzliche Zutaten nötig, auch aufwändigere/neue Gerichte erlaubt.
 
-Nutze für jede Stufe 2-4 Vorschläge, gerne eine Mischung aus bestehenden Rezepten (source="existing", mit recipeId) und neuen Ideen (source="new", mit vollständigen ingredients/steps). Liste bei jedem Vorschlag die fehlenden Zutaten in missingIngredients (leeres Array wenn nichts fehlt). Antworte ausschließlich über das Tool return_suggestions.`;
+Bevorzuge dabei proteinreiche vegetarische Gerichte (z.B. mit Hülsenfrüchten, Tofu, Eiern, Quark, Käse, Nüssen als zentralen Zutaten) – wähle in jeder Stufe, wenn möglich, proteinreiche Optionen vor weniger proteinreichen.
+
+Nutze für jede Stufe 2-3 Vorschläge, gerne eine Mischung aus bestehenden Rezepten (source="existing", mit recipeId) und neuen Ideen (source="new", mit vollständigen ingredients/steps). Halte ingredients/steps bei neuen Rezepten knapp (kurze Stichpunkte, keine ausführlichen Erklärungen). Liste bei jedem Vorschlag die fehlenden Zutaten in missingIngredients (leeres Array wenn nichts fehlt). Antworte ausschließlich über das Tool return_suggestions.`;
 
   const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -99,7 +101,7 @@ Nutze für jede Stufe 2-4 Vorschläge, gerne eine Mischung aus bestehenden Rezep
     },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 4096,
+      max_tokens: 2048,
       tools: [SUGGESTIONS_TOOL],
       tool_choice: { type: 'tool', name: 'return_suggestions' },
       messages: [{ role: 'user', content: userPrompt }],
