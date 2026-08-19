@@ -51,17 +51,25 @@ const SUGGESTION_SCHEMA = {
   required: ['source', 'name', 'missingIngredients'],
 };
 
-const SUGGESTIONS_TOOL = {
-  name: 'return_suggestions',
-  description: 'Liefert Rezeptvorschläge gruppiert nach Einkaufsbedarf.',
-  input_schema: {
-    type: 'object',
-    properties: {
-      noShopping: { type: 'array', items: SUGGESTION_SCHEMA },
-      shopping: { type: 'array', items: SUGGESTION_SCHEMA },
+function buildSuggestionsTool(onlyBucket, count) {
+  const bucketSchema = (isTarget) => ({
+    type: 'array',
+    items: SUGGESTION_SCHEMA,
+    ...(isTarget ? { minItems: count || 2 } : {}),
+  });
+  return {
+    name: 'return_suggestions',
+    description: 'Liefert Rezeptvorschläge gruppiert nach Einkaufsbedarf.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        noShopping: bucketSchema(onlyBucket === 'noShopping'),
+        shopping: bucketSchema(onlyBucket === 'shopping'),
+      },
+      required: onlyBucket ? [onlyBucket] : [],
     },
-  },
-};
+  };
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -148,7 +156,7 @@ Nutze für jede Stufe 2-3 NEUE Rezeptideen (source="new" immer). Schlage keine d
     body: JSON.stringify({
       model: MODEL,
       max_tokens: 2048,
-      tools: [SUGGESTIONS_TOOL],
+      tools: [buildSuggestionsTool(onlyBucket, count)],
       tool_choice: { type: 'tool', name: 'return_suggestions' },
       messages: [{ role: 'user', content: userPrompt }],
     }),
