@@ -574,6 +574,14 @@
       <label class="form-label">Präferenz (optional)</label>
       <input class="form-input" id="aiPreferenceInput" placeholder="z.B. griechische Küche oder keine Präferenz">
     </div>
+    <div class="form-group">
+      <label class="form-label">Anzeigen</label>
+      <div class="qty-type-row" id="aiBucketRow">
+        <button type="button" class="qty-type-btn active" data-bucket="both" onclick="setAiBucket('both', this)">Beides</button>
+        <button type="button" class="qty-type-btn" data-bucket="noShopping" onclick="setAiBucket('noShopping', this)">Ohne Einkauf</button>
+        <button type="button" class="qty-type-btn" data-bucket="shopping" onclick="setAiBucket('shopping', this)">Mit Einkauf</button>
+      </div>
+    </div>
     <button class="btn btn-primary" style="width:100%;justify-content:center;margin-bottom:12px" onclick="generateAiSuggestions()">Vorschläge generieren</button>
     <div id="aiSuggestResult"></div>
     <div class="modal-footer">
@@ -629,6 +637,7 @@
     <div id="recipeDetailContent"></div>
     <div class="modal-footer">
       <button class="btn" onclick="closeModal('modal-recipeDetail')">Schließen</button>
+      <button class="btn btn-sm btn-danger" onclick="deleteRecipeFromDetail()">Löschen</button>
       <button class="btn btn-sm" onclick="editRecipeFromDetail()" id="recipeDetailEditBtn">Bearbeiten</button>
       <button class="btn btn-primary" onclick="addRecipeToGrocery()" id="recipeToGroceryBtn">Zur Einkaufsliste</button>
     </div>
@@ -1185,6 +1194,15 @@ function editRecipeFromDetail() {
   openRecipeModal(state.currentRecipeId);
 }
 
+async function deleteRecipeFromDetail() {
+  const id = state.currentRecipeId;
+  const { error } = await sb.from('recipes').delete().eq('id', id);
+  if (error) { alert('Fehler beim Löschen: ' + error.message); return; }
+  state.recipes = state.recipes.filter(r => r.id !== id);
+  closeModal('modal-recipeDetail');
+  renderRecipes();
+}
+
 async function addRecipeToGrocery() {
   const r = state.recipes.find(r => r.id === state.currentRecipeId);
   if (!r || !(r.ingredients||[]).length) return;
@@ -1255,13 +1273,22 @@ const AI_BUCKETS = [
 let aiSuggestState = { noShopping: [], shopping: [] };
 let aiShownNames = [];
 let aiLastPreference = '';
+let aiSelectedBucket = 'both';
 
 function openAiSuggestModal() {
   document.getElementById('aiPreferenceInput').value = '';
   document.getElementById('aiSuggestResult').innerHTML = '';
   aiSuggestState = { noShopping: [], shopping: [] };
   aiShownNames = [];
+  aiSelectedBucket = 'both';
+  document.querySelectorAll('#aiBucketRow .qty-type-btn').forEach(b => b.classList.toggle('active', b.dataset.bucket === 'both'));
   openModal('modal-aiSuggest');
+}
+
+function setAiBucket(bucket, el) {
+  document.querySelectorAll('#aiBucketRow .qty-type-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  aiSelectedBucket = bucket;
 }
 
 async function generateAiSuggestions() {
@@ -1271,9 +1298,14 @@ async function generateAiSuggestions() {
   const result = document.getElementById('aiSuggestResult');
   result.innerHTML = `<div class="empty"><p>Claude denkt nach …</p></div>`;
   try {
-    const data = await fetchAiSuggestions({ preference: aiLastPreference });
-    aiSuggestState.noShopping = data.noShopping || [];
-    aiSuggestState.shopping = data.shopping || [];
+    if (aiSelectedBucket === 'both') {
+      const data = await fetchAiSuggestions({ preference: aiLastPreference });
+      aiSuggestState.noShopping = (data.noShopping || []).filter(s => s.source === 'new');
+      aiSuggestState.shopping = (data.shopping || []).filter(s => s.source === 'new');
+    } else {
+      const data = await fetchAiSuggestions({ preference: aiLastPreference, onlyBucket: aiSelectedBucket, count: 3 });
+      aiSuggestState[aiSelectedBucket] = (data[aiSelectedBucket] || []).filter(s => s.source === 'new');
+    }
     collectShownNames();
     renderAiSuggestions();
   } catch (err) {
@@ -1291,7 +1323,7 @@ async function loadMoreAiSuggestions(bucketKey, btn) {
       onlyBucket: bucketKey,
       count: 2,
     });
-    aiSuggestState[bucketKey].push(...(data[bucketKey] || []));
+    aiSuggestState[bucketKey].push(...(data[bucketKey] || []).filter(s => s.source === 'new'));
     collectShownNames();
     renderAiSuggestions();
   } catch (err) {
@@ -1342,20 +1374,19 @@ function aiSuggestCard(s) {
   const missing = s.missingIngredients?.length
     ? `<div class="recipe-meta" style="margin-top:6px">Fehlt: ${s.missingIngredients.join(', ')}</div>`
     : '';
-  const openExisting = s.source === 'existing' && s.recipeId ? `closeModal('modal-aiSuggest');openRecipeDetail('${s.recipeId}')` : '';
   return `
-    <div class="recipe-card" style="margin-bottom:10px" ${openExisting ? `onclick="${openExisting}"` : ''}>
+    <div class="recipe-card" style="margin-bottom:10px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
         <div class="recipe-title" style="flex:1">${s.name}</div>
       </div>
       <div class="recipe-meta">${s.time ? s.time + ' Min. · ' : ''}${s.portions ? s.portions + ' Portionen' : ''}</div>
       ${missing}
       <div class="recipe-tags" style="margin-top:6px">
-        ${s.source === 'new' ? '<span class="tag tag-ai">KI</span>' : '<span class="tag">Eigenes Rezept</span>'}
+        <span class="tag tag-ai">KI</span>
         ${(s.tags||[]).map(t=>`<span class="tag">${t}</span>`).join('')}
       </div>
-      <div style="display:flex;gap:8px;margin-top:10px" onclick="event.stopPropagation()">
-        ${s.source === 'new' ? `<button class="btn btn-sm" onclick="saveAiRecipe('${cardId}', this)">Speichern</button>` : ''}
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn btn-sm" onclick="saveAiRecipe('${cardId}', this)">Speichern</button>
         ${s.missingIngredients?.length ? `<button class="btn btn-sm" onclick="addMissingToGrocery('${cardId}', this)">Zur Einkaufsliste</button>` : ''}
       </div>
     </div>`;

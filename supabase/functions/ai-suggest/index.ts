@@ -38,16 +38,15 @@ const NUTRITION_SCHEMA = {
 const SUGGESTION_SCHEMA = {
   type: 'object',
   properties: {
-    source: { type: 'string', enum: ['existing', 'new'] },
-    recipeId: { type: 'string', description: 'Nur bei source=existing: id aus der übergebenen Rezeptliste.' },
+    source: { type: 'string', enum: ['new'] },
     name: { type: 'string' },
     time: { type: 'number' },
     portions: { type: 'number' },
-    ingredients: { type: 'array', items: INGREDIENT_SCHEMA, description: 'Nur bei source=new befüllen. Jede Zutat MUSS eine Mengenangabe (qty+unit) enthalten, sofern sinnvoll möglich.' },
+    ingredients: { type: 'array', items: INGREDIENT_SCHEMA, description: 'Jede Zutat MUSS eine Mengenangabe (qty+unit) enthalten, sofern sinnvoll möglich.' },
     steps: { type: 'array', items: { type: 'string' } },
     tags: { type: 'array', items: { type: 'string' } },
     missingIngredients: { type: 'array', items: { type: 'string' } },
-    nutrition: { ...NUTRITION_SCHEMA, description: 'Nur bei source=new befüllen: grobe Nährwert-Schätzung für das GESAMTE Rezept (alle Portionen zusammen).' },
+    nutrition: { ...NUTRITION_SCHEMA, description: 'Grobe Nährwert-Schätzung für das GESAMTE Rezept (alle Portionen zusammen).' },
   },
   required: ['source', 'name', 'missingIngredients'],
 };
@@ -123,17 +122,21 @@ ${excludeText}
 
 Bevorzuge proteinreiche vegetarische Gerichte (z.B. mit Hülsenfrüchten, Tofu, Eiern, Quark, Käse, Nüssen als zentralen Zutaten). Gib bei neuen Rezepten (source="new") für jede Zutat qty+unit+name an (z.B. {qty:200, unit:"g", name:"Linsen"}) und eine grobe Nährwert-Schätzung (nutrition) fürs gesamte Rezept.`;
 
+  const bucketDefinition = onlyBucket === 'noShopping'
+    ? 'Die Rezepte müssen mit dem aktuellen Vorrat sofort kochbar sein: nichts fehlt, missingIngredients bleibt leer.'
+    : 'Es dürfen (und sollen) Zutaten fehlen, die nicht im Vorrat sind; liste sie in missingIngredients.';
+
   const userPrompt = onlyBucket
     ? `${basePrompt}
 
-Liefere ausschließlich im Feld "${onlyBucket}" genau ${count || 2} NEUE Rezeptideen (source="new", mit vollständigen ingredients/steps, Mengenangaben siehe oben). Lass das jeweils andere Feld weg bzw. leer. Antworte ausschließlich über das Tool return_suggestions.`
+Liefere ausschließlich im Feld "${onlyBucket}" genau ${count || 2} NEUE Rezeptideen (source="new", mit vollständigen ingredients/steps, Mengenangaben siehe oben). ${bucketDefinition} Lass das jeweils andere Feld weg bzw. leer. Antworte ausschließlich über das Tool return_suggestions.`
     : `${basePrompt}
 
 Schlage Gerichte in zwei Stufen vor:
 1. noShopping: sofort kochbar, nichts fehlt im Vorrat.
 2. shopping: es fehlen Zutaten (egal ob wenige oder viele).
 
-Nutze für jede Stufe 2-3 Vorschläge, gerne eine Mischung aus bestehenden Rezepten (source="existing", mit recipeId) und neuen Ideen (source="new"). Halte ingredients/steps bei neuen Rezepten knapp (kurze Stichpunkte, keine ausführlichen Erklärungen). Liste bei jedem Vorschlag die fehlenden Zutaten in missingIngredients (leeres Array wenn nichts fehlt). Antworte ausschließlich über das Tool return_suggestions.`;
+Nutze für jede Stufe 2-3 NEUE Rezeptideen (source="new" immer). Schlage keine der oben gelisteten gespeicherten Rezepte vor (nutze sie nur als Kontext, um Wiederholungen zu vermeiden). Halte ingredients/steps knapp (kurze Stichpunkte, keine ausführlichen Erklärungen). Liste bei jedem Vorschlag die fehlenden Zutaten in missingIngredients (leeres Array wenn nichts fehlt). Antworte ausschließlich über das Tool return_suggestions.`;
 
   const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
