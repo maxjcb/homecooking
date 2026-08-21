@@ -450,6 +450,7 @@
         <option value="Backwaren">Backwaren</option>
         <option value="Dosenlebensmittel">Dosenlebensmittel</option>
         <option value="Essig">Essig</option>
+        <option value="Gemüse">Gemüse</option>
         <option value="Gewürz">Gewürz</option>
         <option value="Hülsenfrüchte">Hülsenfrüchte</option>
         <option value="Öl">Öl</option>
@@ -535,6 +536,7 @@
         <option value="Backwaren">Backwaren</option>
         <option value="Dosenlebensmittel">Dosenlebensmittel</option>
         <option value="Essig">Essig</option>
+        <option value="Gemüse">Gemüse</option>
         <option value="Gewürz">Gewürz</option>
         <option value="Hülsenfrüchte">Hülsenfrüchte</option>
         <option value="Öl">Öl</option>
@@ -557,6 +559,14 @@
     <div class="modal-handle"></div>
     <h2>Passende Rezepte</h2>
     <p style="font-size:14px;color:var(--text2);margin-bottom:16px">Rezepte, deren Zutaten mit Ihren Vorräten übereinstimmen.</p>
+    <div class="form-group">
+      <label class="form-label">Anzeigen</label>
+      <div class="qty-type-row" id="suggestBucketRow">
+        <button type="button" class="qty-type-btn active" data-bucket="both" onclick="setOwnBucket('both', this)">Beides</button>
+        <button type="button" class="qty-type-btn" data-bucket="noShopping" onclick="setOwnBucket('noShopping', this)">Ohne Einkauf</button>
+        <button type="button" class="qty-type-btn" data-bucket="shopping" onclick="setOwnBucket('shopping', this)">Mit Einkauf</button>
+      </div>
+    </div>
     <div id="suggestResult"></div>
     <div class="modal-footer">
       <button class="btn" onclick="closeModal('modal-suggest')">Schließen</button>
@@ -1215,9 +1225,16 @@ async function addRecipeToGrocery() {
 }
 
 // ─── REGELBASIERTE VORSCHLÄGE ────────────────────────────────────────────────
+let ownScoredRecipes = [];
+let ownSelectedBucket = 'both';
+
 function openSuggestModal() {
   const result = document.getElementById('suggestResult');
+  ownSelectedBucket = 'both';
+  document.querySelectorAll('#suggestBucketRow .qty-type-btn').forEach(b => b.classList.toggle('active', b.dataset.bucket === 'both'));
+
   if (!state.recipes.length) {
+    ownScoredRecipes = [];
     result.innerHTML = `<div class="empty"><div class="empty-icon">🍳</div><p>Noch keine Rezepte gespeichert.<br>Fügen Sie zuerst eigene Rezepte hinzu.</p></div>`;
     openModal('modal-suggest');
     return;
@@ -1225,7 +1242,7 @@ function openSuggestModal() {
   const pantryNames = state.items.map(i => i.name.toLowerCase());
 
   // Für jedes Rezept: wie viele Zutaten sind im Vorrat?
-  const scored = state.recipes.map(r => {
+  ownScoredRecipes = state.recipes.map(r => {
     const ings = (r.ingredients || []);
     if (!ings.length) return { r, score: 0, matched: 0, total: 0 };
     const matched = ings.filter(ing => {
@@ -1234,6 +1251,23 @@ function openSuggestModal() {
     }).length;
     return { r, score: matched / ings.length, matched, total: ings.length };
   }).sort((a,b) => b.score - a.score);
+
+  renderOwnSuggestions();
+  openModal('modal-suggest');
+}
+
+function setOwnBucket(bucket, el) {
+  document.querySelectorAll('#suggestBucketRow .qty-type-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  ownSelectedBucket = bucket;
+  renderOwnSuggestions();
+}
+
+function renderOwnSuggestions() {
+  const result = document.getElementById('suggestResult');
+  let scored = ownScoredRecipes;
+  if (ownSelectedBucket === 'noShopping') scored = scored.filter(s => s.matched === s.total);
+  else if (ownSelectedBucket === 'shopping') scored = scored.filter(s => s.matched < s.total);
 
   const hasAny = scored.some(s => s.matched > 0);
 
@@ -1255,13 +1289,11 @@ function openSuggestModal() {
           ${(r.tags||[]).map(t=>`<span class="tag">${t}</span>`).join('')}
         </div>
       </div>`;
-  }).join('') || `<div class="empty"><p>Keine Rezepte vorhanden.</p></div>`;
+  }).join('') || `<div class="empty"><p>Keine passenden Rezepte in dieser Ansicht.</p></div>`;
 
   if (!hasAny && state.items.length === 0) {
     result.innerHTML = `<div class="empty"><div class="empty-icon">🥕</div><p>Erfassen Sie zuerst Ihre Vorräte,<br>damit die Vorschläge funktionieren.</p></div>` + result.innerHTML;
   }
-
-  openModal('modal-suggest');
 }
 
 // ─── KI-VORSCHLÄGE (Claude API via Supabase Edge Function) ───────────────────
